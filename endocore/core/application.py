@@ -10,13 +10,14 @@ dispatcher (resolve route -> call handler -> coerce return value), and writes th
 
 from __future__ import annotations
 
+import importlib
 import sys
 import traceback
 from pathlib import Path
 from typing import Any
 
 from endocore.core.discovery import scan_routes
-from endocore.core.exceptions import BootError
+from endocore.core.exceptions import BootError, HTTPError
 from endocore.core.loader import load_handler
 from endocore.core.logging import get_logger
 from endocore.core.middleware import Middleware, build_chain
@@ -61,15 +62,43 @@ class Application:
                 continue
             self.registry.add(entry)
 
+        # Logging is always outermost (it times auth and everything else);
+        # user middleware from Middleware/ sits inside it, then the dispatcher.
+        user_middlewares = self._load_user_middlewares()
+        self.middlewares = [logging_middleware, *user_middlewares]
+
         # Build the request pipeline once; middlewares are fixed after boot.
         self._pipeline = build_chain(self.middlewares, self._dispatch)
 
-        self._log_boot_summary(skipped)
+        self._log_boot_summary(skipped, len(user_middlewares))
 
-    def _log_boot_summary(self, skipped) -> None:
+    def _load_user_middlewares(self) -> list[Middleware]:
+        """Load the ordered ``middlewares`` list from the app's ``Middleware`` package.
+
+        Convention: ``Middleware/__init__.py`` may expose ``middlewares`` — an
+        ordered list of ``async (request, call_next) -> Response`` callables. The
+        first runs outermost (just inside logging). Absent package or attribute
+        means no user middleware; a broken one is recorded, not fatal.
+        """
+        if not (self.app_dir / "Middleware" / "__init__.py").is_file():
+            return []
+        try:
+            # Drop a cached copy so `end dev` reload picks up edits.
+            sys.modules.pop("Middleware", None)
+            module = importlib.import_module("Middleware")
+            middlewares = list(getattr(module, "middlewares", []))
+        except BaseException as exc:  # noqa: BLE001 - never crash boot on user code
+            self.boot_errors.append(
+                BootError(self.app_dir / "Middleware", exc, traceback.format_exc())
+            )
+            return []
+        return [mw for mw in middlewares if callable(mw)]
+
+    def _log_boot_summary(self, skipped, user_middleware_count: int) -> None:
         self.logger.info(
-            "EndoCore booted: loaded %d routes, %d files with errors (app_dir=%s)",
+            "EndoCore booted: loaded %d routes, %d middleware, %d files with errors (app_dir=%s)",
             len(self.registry),
+            user_middleware_count,
             len(self.boot_errors),
             self.app_dir,
         )
@@ -92,9 +121,13 @@ class Application:
 
         request.path_params = resolution.match.params
         entry = resolution.match.entry
-        result = entry.handler(request)
-        if entry.is_async:
-            result = await result
+        try:
+            result = entry.handler(request)
+            if entry.is_async:
+                result = await result
+        except HTTPError as exc:
+            # Handlers may raise to short-circuit with a status (e.g. 404, 422).
+            return Response.json({"error": exc.detail or "error"}, status=exc.status)
         return self._coerce(result)
 
     @staticmethod

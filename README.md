@@ -1,5 +1,7 @@
 # EndoCore
 
+**Status: Beta (0.1.0b1) — usable.** · Python ≥ 3.11 · one dependency (`uvicorn`)
+
 **File-based ASGI backend framework — the folder tree *is* the API.**
 
 No manual routers, no registration decorators, no config. Drop a file in the
@@ -106,10 +108,43 @@ the logger layer.
 
 ---
 
+## Writing an app
+
+**A handler file** defines one `handler` (sync or async); an optional `init()`
+runs once at boot:
+
+```python
+# Api/v1/User/Role/Post.py  ->  POST /v1/user/role
+from endocore import Request, Response, HTTPError
+
+async def handler(request: Request) -> Response:
+    data = await request.json()
+    if not data:
+        raise HTTPError(422, "body required")   # short-circuit with a status
+    return Response.json({"ok": True}, status=201)
+```
+
+A handler may return a `Response`, a `dict`/`list` (JSON 200), a `str` (text),
+`None` (204), or `(content, status[, headers])`.
+
+**Registering middleware** — list it, ordered, in `Middleware/__init__.py`:
+
+```python
+# Middleware/__init__.py
+from Middleware.auth import auth_middleware
+middlewares = [auth_middleware]   # first = outermost (inside framework logging)
+```
+
+Each middleware is `async def mw(request, call_next) -> Response`: return an
+early `Response` to short-circuit, or `await call_next(request)` to pass inward.
+
 ## Getting started
 
 ```bash
 py -3 -m pip install -e .
 cd example
-end dev
+end dev                 # http://127.0.0.1:8000
+# GET /v1/user/role, GET /v1/user/42, POST /v1/user/role, GET /v1/user/0 -> 404
 ```
+
+Run the framework's own tests with `pytest`; run an app's tests with `end test`.

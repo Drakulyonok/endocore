@@ -26,4 +26,6 @@ end = "endocore.cli.main:main"
 include = ["endocore*"]
 
 [tool.pytest.ini_options]
-testpaths = ["example/Tests"]
+# The framework's own test suite. The example app's tests are run separately
+# from inside example/ via `end test` (they import the app's Api/ tree).
+testpaths = ["tests"]
