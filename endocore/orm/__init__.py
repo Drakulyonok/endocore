@@ -28,9 +28,10 @@ from endocore.orm.exceptions import (
     UnsafeIdentifierError,
 )
 from endocore.orm.expressions import Avg, Count, F, Max, Min, Sum
-from endocore.orm.model import Model
+from endocore.orm.migrations import Migrator
+from endocore.orm.model import Model, get_models
 from endocore.orm.query import Q, QuerySet
-from endocore.orm.schema import create_all, create_table, drop_table
+from endocore.orm.schema import create_all, create_table, create_through_tables, drop_table
 from endocore.orm.storage import (
     EncryptedFileSystemStorage,
     StorageError,
@@ -64,7 +65,10 @@ __all__ = [
     "close_all",
     "create_all",
     "create_table",
+    "create_through_tables",
     "drop_table",
+    "get_models",
+    "Migrator",
     "ORMError",
     "ConfigurationError",
     "UnsafeIdentifierError",

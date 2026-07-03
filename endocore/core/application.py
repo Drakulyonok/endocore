@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import inspect
 import sys
 import traceback
 from pathlib import Path
 from typing import Any
 
+from endocore.core.di import ProviderRegistry, solve
 from endocore.core.discovery import scan_routes
 from endocore.core.exceptions import BootError, HTTPError
 from endocore.core.loader import load_handler
@@ -38,6 +40,7 @@ class Application:
         *,
         dev: bool = False,
         default_version: str | None = None,
+        max_body_size: int | None = 16 * 1024 * 1024,
     ) -> None:
         self.app_dir = Path(app_dir).resolve()
         self.api_dir = self.app_dir / "Api"
@@ -45,8 +48,14 @@ class Application:
         #: ``"latest"`` resolves a version-less path to the newest version (logged);
         #: ``None`` keeps the strict 404 behaviour.
         self.default_version = default_version
+        #: reject request bodies larger than this (bytes); ``None`` = unlimited.
+        self.max_body_size = max_body_size
         self.registry = Registry()
         self.middlewares: list[Middleware] = [logging_middleware]
+        self.on_startup: list = []
+        self.on_shutdown: list = []
+        self.providers = ProviderRegistry()
+        self._singletons: dict = {}
         self.boot_errors: list[BootError] = []
         self.logger = get_logger()
         self._watch_task: asyncio.Task | None = None
@@ -69,6 +78,9 @@ class Application:
         # user middleware from Middleware/ sits inside it, then the dispatcher.
         user_middlewares = self._load_user_middlewares()
         self.middlewares = [logging_middleware, *user_middlewares]
+
+        self._load_hooks()
+        self._load_providers()
 
         # Build the request pipeline once; middlewares are fixed after boot.
         # ``_dispatch`` reads ``self.registry`` on every call, so reload() only
@@ -120,6 +132,48 @@ class Application:
             return []
         return [mw for mw in middlewares if callable(mw)]
 
+    def _load_hooks(self) -> None:
+        """Load ``on_startup`` / ``on_shutdown`` callables from the app's ``hooks.py``.
+
+        Each is a list of zero-arg callables (sync or async), run on the ASGI
+        lifespan events — the place to open/close Redis, schedulers, etc.
+        """
+        self.on_startup, self.on_shutdown = [], []
+        if not (self.app_dir / "hooks.py").is_file():
+            return
+        try:
+            sys.modules.pop("hooks", None)
+            module = importlib.import_module("hooks")
+            self.on_startup = [f for f in getattr(module, "on_startup", []) if callable(f)]
+            self.on_shutdown = [f for f in getattr(module, "on_shutdown", []) if callable(f)]
+        except BaseException as exc:  # noqa: BLE001 - never crash boot on user code
+            self.boot_errors.append(BootError(self.app_dir / "hooks.py", exc, traceback.format_exc()))
+
+    def provide(self, key, factory, *, singleton: bool = True) -> None:
+        """Register an app-level dependency provider, resolvable by type or name."""
+        self.providers.provide(key, factory, singleton=singleton)
+
+    def get_provider(self, annotation, name):
+        return self.providers.get(annotation, name)
+
+    def _load_providers(self) -> None:
+        """Load DI providers from the app's ``providers.py`` (a ``providers`` dict).
+
+            # providers.py
+            providers = {"db": make_pool, Settings: get_settings}
+        """
+        if not (self.app_dir / "providers.py").is_file():
+            return
+        try:
+            sys.modules.pop("providers", None)
+            module = importlib.import_module("providers")
+            for key, factory in getattr(module, "providers", {}).items():
+                self.provide(key, factory)
+        except BaseException as exc:  # noqa: BLE001 - never crash boot on user code
+            self.boot_errors.append(
+                BootError(self.app_dir / "providers.py", exc, traceback.format_exc())
+            )
+
     def _log_boot_summary(self, skipped, user_middleware_count: int) -> None:
         self.logger.info(
             "EndoCore booted: loaded %d routes, %d middleware, %d files with errors (app_dir=%s)",
@@ -153,8 +207,9 @@ class Application:
         request.path_params = resolution.match.params
         entry = resolution.match.entry
         try:
-            result = entry.handler(request)
-            if entry.is_async:
+            kwargs = await solve(entry.handler, request, self)
+            result = entry.handler(**kwargs)
+            if inspect.isawaitable(result):
                 result = await result
         except HTTPError as exc:
             # Handlers may raise to short-circuit with a status (e.g. 404, 422).
@@ -209,18 +264,38 @@ class Application:
         if scope_type != "http":
             return  # websockets etc. are out of MVP scope
 
-        request = Request(scope, receive)
+        request = Request(scope, receive, max_body_size=self.max_body_size)
         response = await self._pipeline(request)
         await response(send)
+
+        background = getattr(response, "background", None)
+        if background is not None:
+            await self._run_hook(background)
+
+    async def _run_hook(self, hook) -> None:
+        result = hook()
+        if asyncio.iscoroutine(result):
+            await result
 
     async def _lifespan(self, receive, send) -> None:
         while True:
             message = await receive()
             if message["type"] == "lifespan.startup":
+                try:
+                    for hook in self.on_startup:
+                        await self._run_hook(hook)
+                except Exception as exc:  # noqa: BLE001
+                    await send({"type": "lifespan.startup.failed", "message": repr(exc)})
+                    return
                 self._start_watcher()
                 await send({"type": "lifespan.startup.complete"})
             elif message["type"] == "lifespan.shutdown":
                 self._stop_watcher()
+                for hook in self.on_shutdown:
+                    try:
+                        await self._run_hook(hook)
+                    except Exception:  # noqa: BLE001 - shutdown must not hang
+                        self.logger.error("shutdown hook failed:\n%s", traceback.format_exc().rstrip())
                 await send({"type": "lifespan.shutdown.complete"})
                 return
 

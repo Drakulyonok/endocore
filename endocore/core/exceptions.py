@@ -28,9 +28,84 @@ class BootError(EndoCoreError):
 
 
 class HTTPError(EndoCoreError):
-    """Raised inside a handler to short-circuit with a status code."""
+    """Raised inside a handler to short-circuit with a status code.
 
-    def __init__(self, status: int, detail: str | None = None) -> None:
-        self.status = status
-        self.detail = detail or ""
-        super().__init__(f"HTTP {status}: {self.detail}")
+    Subclasses set a default status and message, so handlers can write
+    ``raise NotFound()`` or ``raise Forbidden("nope")``.
+    """
+
+    status = 500
+    message = "Internal Server Error"
+
+    def __init__(self, status: int | None = None, detail: str | None = None) -> None:
+        if status is not None:
+            self.status = status
+        self.detail = detail if detail is not None else self.message
+        super().__init__(f"HTTP {self.status}: {self.detail}")
+
+
+class BadRequest(HTTPError):
+    status, message = 400, "Bad Request"
+
+    def __init__(self, detail: str | None = None) -> None:
+        super().__init__(None, detail)
+
+
+class Unauthorized(HTTPError):
+    status, message = 401, "Unauthorized"
+
+    def __init__(self, detail: str | None = None) -> None:
+        super().__init__(None, detail)
+
+
+class Forbidden(HTTPError):
+    status, message = 403, "Forbidden"
+
+    def __init__(self, detail: str | None = None) -> None:
+        super().__init__(None, detail)
+
+
+class NotFound(HTTPError):
+    status, message = 404, "Not Found"
+
+    def __init__(self, detail: str | None = None) -> None:
+        super().__init__(None, detail)
+
+
+class MethodNotAllowed(HTTPError):
+    status, message = 405, "Method Not Allowed"
+
+    def __init__(self, detail: str | None = None) -> None:
+        super().__init__(None, detail)
+
+
+class Conflict(HTTPError):
+    status, message = 409, "Conflict"
+
+    def __init__(self, detail: str | None = None) -> None:
+        super().__init__(None, detail)
+
+
+class PayloadTooLarge(HTTPError):
+    status, message = 413, "Payload Too Large"
+
+    def __init__(self, detail: str | None = None) -> None:
+        super().__init__(None, detail)
+
+
+class UnprocessableEntity(HTTPError):
+    status, message = 422, "Unprocessable Entity"
+
+    def __init__(self, detail: str | None = None) -> None:
+        super().__init__(None, detail)
+
+
+class TooManyRequests(HTTPError):
+    status, message = 429, "Too Many Requests"
+
+    def __init__(self, detail: str | None = None) -> None:
+        super().__init__(None, detail)
+
+
+#: Django-style alias.
+PermissionDenied = Forbidden

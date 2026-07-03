@@ -1,6 +1,6 @@
 # EndoCore
 
-**Status: Beta (0.3.0b1) — usable.** · Python ≥ 3.11 · core dependency (`uvicorn`) · optional `psycopg` (Postgres), `cryptography` (encrypted files)
+**Status: Beta (0.4.0b1) — client-usable.** · Python ≥ 3.11 · core dependency (`uvicorn`) · optional `psycopg` (Postgres), `cryptography` (encrypted files) · **1510 tests**
 
 **File-based ASGI backend framework — the folder tree *is* the API — with a small, secure ORM.**
 
@@ -201,6 +201,41 @@ d.file.read()                                 # decrypts on demand
 
 PostgreSQL needs the driver: `pip install "endocore[postgres]"`; encrypted files:
 `pip install "endocore[files]"`.
+
+## Batteries
+
+**Dependency injection** — declare it, get it (nested, per-request cached):
+
+```python
+from endocore import Request, Response, Depends
+
+def db(): ...
+async def handler(request: Request, conn = Depends(db)):
+    return Response.json({"ok": True})
+```
+App-level providers live in `providers.py` (`providers = {"db": make_pool}`).
+
+**Config** — typed, env-backed `Settings` (`from endocore import Settings, env`).
+**Exceptions** — `raise NotFound()`, `Unauthorized`, `Forbidden`, `Conflict`,
+`UnprocessableEntity`, `TooManyRequests`, … (rendered to their status).
+**Cookies** — `response.set_cookie(...)`, signed cookies, `request.cookies`.
+**Forms/uploads** — `await request.form()`, `await request.files()`.
+**Lifecycle** — `hooks.py` (`on_startup` / `on_shutdown`) + response background tasks.
+
+**Middleware** (`from endocore.middleware import ...`, list them in
+`Middleware/__init__.py`): `cors_middleware`, `security_headers_middleware`,
+`gzip_middleware`, `proxy_headers_middleware`, `rate_limit_middleware`,
+`timeout_middleware`, `csrf_middleware`.
+
+**Migrations** with rollback:
+
+```bash
+end makemigrations initial
+end migrate
+end rollback            # undo the last migration
+```
+
+Other CLI: `end new <Name>`, `end routes`, `end check`, `end doctor`.
 
 ## Getting started
 

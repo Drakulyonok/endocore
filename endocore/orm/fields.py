@@ -538,6 +538,19 @@ class FileField(Field):
 
 # -- relations --------------------------------------------------------------
 
+#: Referential actions -> the SQL emitted in ``ON DELETE``. PROTECT has no pure
+#: SQL equivalent, so it maps to RESTRICT (the DB refuses the delete).
+_ON_DELETE = {
+    "CASCADE": "CASCADE",
+    "SET NULL": "SET NULL",
+    "SET_NULL": "SET NULL",
+    "RESTRICT": "RESTRICT",
+    "PROTECT": "RESTRICT",
+    "NO ACTION": "NO ACTION",
+    "DO_NOTHING": "NO ACTION",
+}
+
+
 class ForeignKey(Field):
     """A reference to another model, stored as ``<name>_id``."""
 
@@ -545,8 +558,17 @@ class ForeignKey(Field):
 
     def __init__(self, to, *, on_delete: str = "CASCADE", **kwargs: Any) -> None:
         self.to = to
-        self.on_delete = on_delete
+        key = on_delete.upper()
+        if key not in _ON_DELETE:
+            raise FieldError(
+                f"invalid on_delete {on_delete!r}; use one of "
+                f"{', '.join(sorted(set(_ON_DELETE)))}"
+            )
+        self.on_delete = key
         super().__init__(**kwargs)
+
+    def on_delete_sql(self) -> str:
+        return _ON_DELETE[self.on_delete]
 
     def bind(self, name: str, model) -> None:
         super().bind(name, model)
@@ -559,3 +581,128 @@ class ForeignKey(Field):
 
     def to_python(self, value: Any) -> Any:
         return None if value is None else int(value)
+
+
+class OneToOneField(ForeignKey):
+    """A ForeignKey constrained to be unique — a one-to-one relation."""
+
+    def __init__(self, to, *, on_delete: str = "CASCADE", **kwargs: Any) -> None:
+        kwargs.setdefault("unique", True)
+        super().__init__(to, on_delete=on_delete, **kwargs)
+
+
+class ManyToManyField(Field):
+    """A many-to-many relation stored in an auto-created through table.
+
+    Not a column on the model. Access via a manager: ``obj.tags.add(...)``,
+    ``obj.tags.all()``, ``.remove()``, ``.set([...])``, ``.clear()``.
+    """
+
+    internal_type = "ManyToManyField"
+
+    def __init__(self, to, *, through: str | None = None, **kwargs: Any) -> None:
+        self.to = to
+        self.through = through
+        super().__init__(**kwargs)
+
+    def through_table(self) -> str:
+        return self.through or f"{self.model._meta.table}_{self.name}"
+
+    def source_column(self) -> str:
+        return f"{self.model._meta.table}_id"
+
+    def target_column(self) -> str:
+        return f"{self.to._meta.table}_id"
+
+
+class ManyRelatedManager:
+    """Manages one instance's side of a many-to-many relation."""
+
+    def __init__(self, field: ManyToManyField, instance) -> None:
+        self.field = field
+        self.instance = instance
+        self.to = field.to
+
+    def _conn(self):
+        from endocore.orm.connection import get_connection
+
+        return get_connection(self.to._meta.using)
+
+    def _backend(self):
+        return self._conn().backend
+
+    def _target_ids(self) -> list:
+        b = self._backend()
+        table, src, tgt = (
+            b.quote(self.field.through_table()),
+            b.quote(self.field.source_column()),
+            b.quote(self.field.target_column()),
+        )
+        sql = f"SELECT {tgt} FROM {table} WHERE {src} = {b.placeholder}"
+        rows = self._conn().execute(sql, [self.instance.pk]).fetchall()
+        return [r[0] for r in rows]
+
+    def all(self) -> list:
+        cached = getattr(self.instance, f"_m2m_{self.field.name}", None)
+        if cached is not None:
+            return cached
+        ids = self._target_ids()
+        return list(self.to.objects.filter(pk__in=ids)) if ids else []
+
+    def count(self) -> int:
+        return len(self._target_ids())
+
+    def add(self, *objects) -> None:
+        b = self._backend()
+        table, src, tgt = (
+            b.quote(self.field.through_table()),
+            b.quote(self.field.source_column()),
+            b.quote(self.field.target_column()),
+        )
+        existing = set(self._target_ids())
+        conn = self._conn()
+        with conn.atomic():
+            for obj in objects:
+                target_pk = obj.pk if hasattr(obj, "pk") else obj
+                if target_pk in existing:
+                    continue
+                sql = (
+                    f"INSERT INTO {table} ({src}, {tgt}) "
+                    f"VALUES ({b.placeholder}, {b.placeholder})"
+                )
+                conn.execute(sql, [self.instance.pk, target_pk], write=True)
+                existing.add(target_pk)
+
+    def remove(self, *objects) -> None:
+        b = self._backend()
+        table, src, tgt = (
+            b.quote(self.field.through_table()),
+            b.quote(self.field.source_column()),
+            b.quote(self.field.target_column()),
+        )
+        ids = [obj.pk if hasattr(obj, "pk") else obj for obj in objects]
+        if not ids:
+            return
+        placeholders = b.placeholders(len(ids))
+        sql = f"DELETE FROM {table} WHERE {src} = {b.placeholder} AND {tgt} IN ({placeholders})"
+        self._conn().execute(sql, [self.instance.pk, *ids], write=True)
+
+    def clear(self) -> None:
+        b = self._backend()
+        table, src = b.quote(self.field.through_table()), b.quote(self.field.source_column())
+        sql = f"DELETE FROM {table} WHERE {src} = {b.placeholder}"
+        self._conn().execute(sql, [self.instance.pk], write=True)
+
+    def set(self, objects) -> None:
+        self.clear()
+        self.add(*objects)
+
+
+class ManyRelatedDescriptor:
+    def __init__(self, field: ManyToManyField) -> None:
+        self.field = field
+
+    def __get__(self, instance, owner=None):
+        if instance is None:
+            return self
+        return ManyRelatedManager(self.field, instance)

@@ -48,6 +48,13 @@ class SQLiteBackend(BaseBackend):
         import sqlite3
 
         database = params.pop("database", ":memory:")
+        # check_same_thread=False so the single app connection survives being
+        # touched from a worker thread; Connection serializes access with a lock.
+        params.setdefault("check_same_thread", False)
         conn = sqlite3.connect(database, **params)
         conn.execute("PRAGMA foreign_keys = ON")
+        # SQLite's LIKE is case-insensitive by default; Postgres LIKE is not.
+        # Make them consistent so `contains` is case-sensitive and `icontains`
+        # (which uses LOWER on both sides) is case-insensitive everywhere.
+        conn.execute("PRAGMA case_sensitive_like = ON")
         return conn

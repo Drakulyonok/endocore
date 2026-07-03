@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "endocore"
-version = "0.2.0b1"
-description = "File-based ASGI backend framework (folder tree = API) with a small secure ORM."
+version = "0.4.0b1"
+description = "File-based ASGI backend framework (folder tree = API) with a secure ORM, DI, and batteries-included middleware."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

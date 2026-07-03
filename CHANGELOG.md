@@ -2,6 +2,51 @@
 
 All notable changes to EndoCore are documented here.
 
+## [0.4.0b1] — 2026-07-03 — fourth Beta: client-usable (DI, batteries, migrations)
+
+Big round toward "client usable": convenience, security, and a lot more surface.
+**1510 tests.**
+
+### Added — framework / HTTP
+- **Dependency Injection**: `Depends(...)` (FastAPI-style, nested, per-request
+  cached) + app-level providers by type or name (`providers.py`). Resolves
+  string annotations via `get_type_hints`.
+- **Unified config**: typed `Settings` (env-backed, secret-masked repr),
+  `env()`, `load_dotenv()`.
+- **HTTP exception classes**: `NotFound`, `Unauthorized`, `Forbidden`
+  (=`PermissionDenied`), `BadRequest`, `Conflict`, `UnprocessableEntity`,
+  `TooManyRequests`, `PayloadTooLarge`, `MethodNotAllowed` — rendered centrally.
+- **Request**: `QueryParams` (`.get`/`.getlist`), `cookies`, `form()` +
+  `files()` (urlencoded + multipart parser), `get_signed_cookie`, body-size limit.
+- **Response**: `set_cookie`/`delete_cookie`/`set_signed_cookie`, `redirect`,
+  `no_content`, background tasks; signed cookies (`Signer`, HMAC-SHA256).
+- **Lifecycle**: `on_startup`/`on_shutdown` hooks (`hooks.py`); background tasks.
+- **Logging**: framework `X-Request-ID`, colored dev logs.
+- **Middleware bundle**: `cors`, `security_headers`, `gzip`, `proxy_headers`
+  (trusted proxy), `rate_limit`, `timeout`, `csrf` (signed double-submit).
+
+### Added — ORM
+- **ManyToManyField** (auto through table, `add/remove/set/clear/all/count`),
+  **OneToOneField**, **prefetch_related** (batch, no N+1), abstract models with
+  field inheritance, `Meta.ordering` / `unique_together` / `indexes`.
+- **Migrations with rollback**: `end makemigrations` / `migrate` / `rollback`
+  (forward+reverse SQL, applied-state table).
+- `refresh_from_db`, `save(update_fields=...)`, `none()`, `in_bulk()`,
+  `__contains__`, richer `__repr__`, `on_delete` (CASCADE/SET NULL/RESTRICT/
+  PROTECT), transaction **savepoints** for nested `atomic()`.
+
+### Added — CLI
+- `end new`, `end routes`, `end check`, `end doctor`,
+  `end makemigrations` / `end migrate` / `end rollback`.
+
+### Fixed
+- `__eq__` for unsaved instances (identity), `bulk_create` now backfills pks on
+  SQLite, `values_list()` returns **tuples** (was dicts).
+- **SQLite `LIKE` made case-sensitive** (`PRAGMA case_sensitive_like`) so
+  `contains`/`icontains` behave identically to PostgreSQL.
+- Column DDL emits `DEFAULT` for constant defaults (so `ADD COLUMN NOT NULL`
+  works in migrations); SQLite `check_same_thread=False` + a connection lock.
+
 ## [0.3.0b1] — 2026-07-03 — third Beta: ORM completeness, encrypted files, deferrals
 
 ### Added — ORM

@@ -12,8 +12,13 @@ from __future__ import annotations
 import argparse
 
 from endocore import __version__
+from endocore.cli.commands import check as check_cmd
 from endocore.cli.commands import create as create_cmd
 from endocore.cli.commands import dev as dev_cmd
+from endocore.cli.commands import doctor as doctor_cmd
+from endocore.cli.commands import migrate as migrate_cmd
+from endocore.cli.commands import new as new_cmd
+from endocore.cli.commands import routes as routes_cmd
 from endocore.cli.commands import test as test_cmd
 from endocore.cli.commands import version as version_cmd
 
@@ -27,7 +32,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"EndoCore {__version__}")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for command in (create_cmd, dev_cmd, version_cmd, test_cmd):
+    for command in (
+        new_cmd, create_cmd, dev_cmd, routes_cmd, check_cmd, doctor_cmd,
+        migrate_cmd, version_cmd, test_cmd,
+    ):
         command.register(subparsers)
 
     return parser

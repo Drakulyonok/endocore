@@ -24,6 +24,12 @@ class Manager:
     def all(self) -> QuerySet:
         return self.get_queryset()
 
+    def none(self) -> QuerySet:
+        return self.get_queryset().none()
+
+    def in_bulk(self, ids) -> dict:
+        return self.get_queryset().in_bulk(ids)
+
     def filter(self, *args, **kwargs) -> QuerySet:
         return self.get_queryset().filter(*args, **kwargs)
 
@@ -38,6 +44,9 @@ class Manager:
 
     def select_related(self, *paths) -> QuerySet:
         return self.get_queryset().select_related(*paths)
+
+    def prefetch_related(self, *names) -> QuerySet:
+        return self.get_queryset().prefetch_related(*names)
 
     def values(self, *fields) -> QuerySet:
         return self.get_queryset().values(*fields)

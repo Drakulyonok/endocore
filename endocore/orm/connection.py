@@ -7,6 +7,7 @@ live only in the config dict and are never logged.
 
 from __future__ import annotations
 
+import threading
 from contextlib import contextmanager
 from typing import Any, Iterator
 
@@ -26,6 +27,7 @@ class Connection:
         self.alias = alias
         self._conn = None
         self._depth = 0  # atomic() nesting depth
+        self._lock = threading.RLock()  # guards cursor use across threads
 
     def _raw(self):
         if self._conn is None:
@@ -34,34 +36,47 @@ class Connection:
 
     def execute(self, sql: str, params: Any = (), *, write: bool = False):
         """Run one statement with bound params. Commits writes when not in atomic."""
-        cursor = self._raw().cursor()
-        cursor.execute(sql, tuple(params))
-        if write and self._depth == 0:
-            self._raw().commit()
-        return cursor
+        with self._lock:
+            cursor = self._raw().cursor()
+            cursor.execute(sql, tuple(params))
+            if write and self._depth == 0:
+                self._raw().commit()
+            return cursor
 
     def executescript(self, sql: str) -> None:
         """Run DDL (no bound params). Commits immediately when not in atomic."""
-        self._raw().cursor().execute(sql)
-        if self._depth == 0:
-            self._raw().commit()
+        with self._lock:
+            self._raw().cursor().execute(sql)
+            if self._depth == 0:
+                self._raw().commit()
 
     @contextmanager
     def atomic(self) -> Iterator[None]:
-        """Transaction block. Nested blocks join the outermost (no savepoints)."""
+        """Transaction block. Nested blocks use SAVEPOINTs, so an inner failure
+        can roll back just its own work if the caller catches the exception."""
         conn = self._raw()
-        self._depth += 1
+        with self._lock:
+            self._depth += 1
+            level = self._depth
+        savepoint = f"endo_sp_{level}" if level > 1 else None
+        if savepoint is not None:
+            conn.cursor().execute(f"SAVEPOINT {savepoint}")
         try:
             yield
         except BaseException:
-            if self._depth == 1:
+            if savepoint is not None:
+                conn.cursor().execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            elif level == 1:
                 conn.rollback()
             raise
         else:
-            if self._depth == 1:
+            if savepoint is not None:
+                conn.cursor().execute(f"RELEASE SAVEPOINT {savepoint}")
+            elif level == 1:
                 conn.commit()
         finally:
-            self._depth -= 1
+            with self._lock:
+                self._depth -= 1
 
     def close(self) -> None:
         if self._conn is not None:

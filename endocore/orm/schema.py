@@ -11,6 +11,18 @@ from endocore.orm.connection import get_connection
 from endocore.orm.fields import ForeignKey
 
 
+def _sql_literal(value) -> str | None:
+    """Render a simple default value as a safe SQL literal (or None to skip)."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, (int, float)):
+        return str(value)
+    text = str(value).replace("'", "''")  # escape quotes; developer-provided value
+    return f"'{text}'"
+
+
 def _column_def(backend, field) -> str:
     col = backend.quote(field.column)
 
@@ -23,6 +35,13 @@ def _column_def(backend, field) -> str:
     elif field.unique:
         parts.append("UNIQUE")
     parts.append("NULL" if field.null else "NOT NULL")
+
+    # Emit a DB-level DEFAULT for constant defaults so ADD COLUMN works on
+    # populated tables (migrations) and inserts are safe.
+    if field.has_default() and not callable(field.default) and field.internal_type != "ForeignKey":
+        literal = _sql_literal(field.to_db(field.default, backend))
+        if literal is not None:
+            parts.append(f"DEFAULT {literal}")
     return " ".join(parts)
 
 
@@ -41,6 +60,16 @@ def _index_statements(model, backend) -> list[str]:
                 f"CREATE INDEX IF NOT EXISTS {backend.quote(index_name)} "
                 f"ON {backend.quote(meta.table)} ({backend.quote(field.column)})"
             )
+
+    # Composite indexes declared via Meta.indexes = [["a", "b"], ...].
+    for names in meta.indexes:
+        cols = [meta.get_field(n).column for n in names]
+        index_name = "ix_" + meta.table + "_" + "_".join(cols)
+        quoted = ", ".join(backend.quote(c) for c in cols)
+        statements.append(
+            f"CREATE INDEX IF NOT EXISTS {backend.quote(index_name)} "
+            f"ON {backend.quote(meta.table)} ({quoted})"
+        )
     return statements
 
 
@@ -54,12 +83,36 @@ def create_table_sql(model, backend, *, if_not_exists: bool = True) -> str:
             lines.append(
                 f"FOREIGN KEY ({backend.quote(field.column)}) "
                 f"REFERENCES {backend.quote(ref_meta.table)} ({backend.quote(ref_meta.pk.column)}) "
-                f"ON DELETE {field.on_delete}"
+                f"ON DELETE {field.on_delete_sql()}"
             )
+
+    # Composite uniqueness declared via Meta.unique_together.
+    for names in meta.unique_together:
+        cols = ", ".join(backend.quote(meta.get_field(n).column) for n in names)
+        lines.append(f"UNIQUE ({cols})")
 
     exists = "IF NOT EXISTS " if if_not_exists else ""
     body = ",\n    ".join(lines)
     return f"CREATE TABLE {exists}{backend.quote(meta.table)} (\n    {body}\n)"
+
+
+def through_table_sql(field, backend, *, if_not_exists: bool = True) -> str:
+    """DDL for a many-to-many through table (two FK columns, composite PK)."""
+    src_meta = field.model._meta
+    tgt_meta = field.to._meta
+    src, tgt = field.source_column(), field.target_column()
+    exists = "IF NOT EXISTS " if if_not_exists else ""
+    return (
+        f"CREATE TABLE {exists}{backend.quote(field.through_table())} (\n"
+        f"    {backend.quote(src)} INTEGER NOT NULL,\n"
+        f"    {backend.quote(tgt)} INTEGER NOT NULL,\n"
+        f"    PRIMARY KEY ({backend.quote(src)}, {backend.quote(tgt)}),\n"
+        f"    FOREIGN KEY ({backend.quote(src)}) REFERENCES "
+        f"{backend.quote(src_meta.table)} ({backend.quote(src_meta.pk.column)}) ON DELETE CASCADE,\n"
+        f"    FOREIGN KEY ({backend.quote(tgt)}) REFERENCES "
+        f"{backend.quote(tgt_meta.table)} ({backend.quote(tgt_meta.pk.column)}) ON DELETE CASCADE\n"
+        f")"
+    )
 
 
 def create_table(model, *, using: str = "default", if_not_exists: bool = True) -> None:
@@ -69,6 +122,12 @@ def create_table(model, *, using: str = "default", if_not_exists: bool = True) -
         conn.executescript(statement)
 
 
+def create_through_tables(model, *, using: str = "default") -> None:
+    conn = get_connection(using)
+    for field in model._meta.many_to_many:
+        conn.executescript(through_table_sql(field, conn.backend))
+
+
 def drop_table(model, *, using: str = "default", if_exists: bool = True) -> None:
     conn = get_connection(using)
     exists = "IF EXISTS " if if_exists else ""
@@ -76,6 +135,8 @@ def drop_table(model, *, using: str = "default", if_exists: bool = True) -> None
 
 
 def create_all(*models, using: str = "default") -> None:
-    """Create tables for all given models (in the order provided)."""
+    """Create tables for all given models, then their M2M through tables."""
     for model in models:
         create_table(model, using=using)
+    for model in models:  # second pass: through tables reference both sides
+        create_through_tables(model, using=using)

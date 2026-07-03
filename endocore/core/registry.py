@@ -126,5 +126,20 @@ class Registry:
             return None
         return max(self._versions, key=lambda v: int(v[1:]))
 
+    def routes(self) -> list:
+        """All registered route specs (for ``end routes`` / introspection)."""
+        collected: list = []
+
+        def walk(node: RouteNode) -> None:
+            collected.extend(entry.spec for entry in node.handlers.values())
+            for child in node.static.values():
+                walk(child)
+            if node.dynamic is not None:
+                walk(node.dynamic)
+
+        for root in self._versions.values():
+            walk(root)
+        return collected
+
     def __len__(self) -> int:
         return self._count

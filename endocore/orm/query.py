@@ -55,8 +55,11 @@ class QuerySet:
         self._result_cache: list | None = None
         self._values_fields: tuple[str, ...] | None = None
         self._values_flat = False
+        self._values_list = False  # True -> tuples; False -> dicts (for values())
         self._distinct = False
         self._select_related: list[str] = []
+        self._prefetch: list[str] = []
+        self._is_empty = False
 
     # -- infra ------------------------------------------------------------
 
@@ -78,9 +81,17 @@ class QuerySet:
         clone._offset = self._offset
         clone._values_fields = self._values_fields
         clone._values_flat = self._values_flat
+        clone._values_list = self._values_list
         clone._distinct = self._distinct
         clone._select_related = list(self._select_related)
+        clone._prefetch = list(self._prefetch)
+        clone._is_empty = self._is_empty
         return clone
+
+    @property
+    def _effective_order(self) -> list[str]:
+        """Explicit order_by, else the model's ``Meta.ordering``."""
+        return list(self._order_by) if self._order_by else list(self._meta.ordering)
 
     def _connection(self):
         from endocore.orm.connection import get_connection
@@ -115,8 +126,19 @@ class QuerySet:
         clone._select_related = list(self._select_related) + list(paths)
         return clone
 
+    def prefetch_related(self, *names: str) -> "QuerySet":
+        clone = self._clone()
+        clone._prefetch = list(self._prefetch) + list(names)
+        return clone
+
     def all(self) -> "QuerySet":
         return self._clone()
+
+    def none(self) -> "QuerySet":
+        """An always-empty QuerySet that never hits the database."""
+        clone = self._clone()
+        clone._is_empty = True
+        return clone
 
     # -- projection -------------------------------------------------------
 
@@ -124,6 +146,7 @@ class QuerySet:
         clone = self._clone()
         clone._values_fields = fields or tuple(f.name for f in self._meta.fields)
         clone._values_flat = False
+        clone._values_list = False
         return clone
 
     def values_list(self, *fields: str, flat: bool = False) -> "QuerySet":
@@ -132,6 +155,7 @@ class QuerySet:
         clone = self._clone()
         clone._values_fields = fields or tuple(f.name for f in self._meta.fields)
         clone._values_flat = flat
+        clone._values_list = True
         return clone
 
     # -- SQL helpers ------------------------------------------------------
@@ -166,7 +190,7 @@ class QuerySet:
 
         if self._select_related:
             return True
-        for spec in self._order_by:
+        for spec in self._effective_order:
             name = spec[1:] if spec.startswith("-") else spec
             if "__" in name:
                 return True
@@ -225,6 +249,9 @@ class QuerySet:
     def _fetch(self) -> list:
         if self._result_cache is not None:
             return self._result_cache
+        if self._is_empty:
+            self._result_cache = []
+            return self._result_cache
 
         if self._uses_joins():
             self._result_cache = self._fetch_joined()
@@ -234,7 +261,7 @@ class QuerySet:
         sql, params = self._compiler().select(
             self._meta,
             wheres=self._wheres,
-            order_by=self._order_by,
+            order_by=self._effective_order,
             limit=self._limit,
             offset=self._offset,
             columns=columns,
@@ -248,6 +275,11 @@ class QuerySet:
             fields = [self._meta.get_field(n) if n != "pk" else self._meta.pk for n in names]
             if self._values_flat:
                 result = [fields[0].to_python(row[0]) for row in rows]
+            elif self._values_list:
+                result = [
+                    tuple(field.to_python(row[i]) for i, field in enumerate(fields))
+                    for row in rows
+                ]
             else:
                 result = [
                     {name: field.to_python(row[i]) for i, (name, field) in enumerate(zip(names, fields))}
@@ -255,6 +287,8 @@ class QuerySet:
                 ]
         else:
             result = [self._row_to_instance(columns, row) for row in rows]
+            if self._prefetch:
+                self._apply_prefetch(result)
 
         self._result_cache = result
         return result
@@ -265,14 +299,58 @@ class QuerySet:
         sql, params, result_map = self._compiler().build_joined(
             self._meta,
             wheres=self._wheres,
-            order_by=self._order_by,
+            order_by=self._effective_order,
             select_related=self._select_related,
             distinct=self._distinct,
             limit=self._limit,
             offset=self._offset,
         )
         rows = self._connection().execute(sql, params).fetchall()
-        return [self._row_to_instance_joined(result_map, row) for row in rows]
+        instances = [self._row_to_instance_joined(result_map, row) for row in rows]
+        if self._prefetch:
+            self._apply_prefetch(instances)
+        return instances
+
+    # -- prefetch (batch-load relations to avoid N+1) --------------------
+
+    def _apply_prefetch(self, instances: list) -> None:
+        for name in self._prefetch:
+            m2m = next((f for f in self._meta.many_to_many if f.name == name), None)
+            if m2m is not None:
+                self._prefetch_m2m(m2m, instances)
+                continue
+            field = self._meta.fields_by_name.get(name)
+            if field is not None and isinstance(field, ForeignKey):
+                self._prefetch_fk(field, instances)
+                continue
+            raise FieldError(f"prefetch_related: {name!r} is not a relation on {self.model.__name__}")
+
+    def _prefetch_m2m(self, field, instances: list) -> None:
+        backend = self._backend
+        pks = [i.pk for i in instances if i.pk is not None]
+        if not pks:
+            for inst in instances:
+                setattr(inst, f"_m2m_{field.name}", [])
+            return
+        table = backend.quote(field.through_table())
+        src, tgt = backend.quote(field.source_column()), backend.quote(field.target_column())
+        sql = f"SELECT {src}, {tgt} FROM {table} WHERE {src} IN ({backend.placeholders(len(pks))})"
+        groups: dict = {}
+        targets: set = set()
+        for source_id, target_id in self._connection().execute(sql, pks).fetchall():
+            groups.setdefault(source_id, []).append(target_id)
+            targets.add(target_id)
+        objmap = {o.pk: o for o in field.to.objects.filter(pk__in=list(targets))} if targets else {}
+        for inst in instances:
+            setattr(inst, f"_m2m_{field.name}",
+                    [objmap[t] for t in groups.get(inst.pk, []) if t in objmap])
+
+    def _prefetch_fk(self, field, instances: list) -> None:
+        ids = {getattr(i, field.id_attr_name) for i in instances}
+        ids.discard(None)
+        objmap = {o.pk: o for o in field.to.objects.filter(pk__in=list(ids))} if ids else {}
+        for inst in instances:
+            setattr(inst, f"_{field.name}_cache", objmap.get(getattr(inst, field.id_attr_name)))
 
     def __iter__(self) -> Iterator:
         return iter(self._fetch())
@@ -282,6 +360,9 @@ class QuerySet:
 
     def __bool__(self) -> bool:
         return bool(self._fetch())
+
+    def __contains__(self, obj) -> bool:
+        return obj in self._fetch()
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -320,17 +401,19 @@ class QuerySet:
         return rows[0]
 
     def first(self):
-        qs = self if self._order_by else self.order_by("pk")
-        result = qs[:1]._fetch()
+        order = self._effective_order or ["pk"]
+        result = self.order_by(*order)[:1]._fetch()
         return result[0] if result else None
 
     def last(self):
-        order = self._order_by or ["pk"]
+        order = self._effective_order or ["pk"]
         reversed_order = [f[1:] if f.startswith("-") else f"-{f}" for f in order]
         result = self.order_by(*reversed_order)[:1]._fetch()
         return result[0] if result else None
 
     def count(self) -> int:
+        if self._is_empty:
+            return 0
         if self._uses_joins() and not self._distinct:
             sql, params = self._compiler().count_joined(self._meta, wheres=self._wheres)
         else:
@@ -340,6 +423,13 @@ class QuerySet:
 
     def exists(self) -> bool:
         return bool(self[:1]._fetch())
+
+    def in_bulk(self, ids: Iterable[Any]) -> dict:
+        """Return a ``{pk: instance}`` map for the given primary keys."""
+        ids = list(ids)
+        if not ids:
+            return {}
+        return {obj.pk: obj for obj in self.filter(pk__in=ids)}
 
     def aggregate(self, **kwargs) -> dict:
         from endocore.orm.expressions import Aggregate
@@ -391,8 +481,10 @@ class QuerySet:
         return instance
 
     def bulk_create(self, objects: list) -> list:
-        """Insert many rows in one statement. pks are populated only where the
-        backend supports RETURNING (Postgres); on SQLite they stay unset."""
+        """Insert many rows in one statement, populating primary keys.
+
+        Uses RETURNING on Postgres; on SQLite the contiguous rowids of a single
+        multi-row INSERT are backfilled from ``lastrowid``."""
         if not objects:
             return objects
         backend = self._backend
@@ -416,6 +508,12 @@ class QuerySet:
                 ids = [r[0] for r in cursor.fetchall()]
                 for obj, new_pk in zip(objects, ids):
                     obj.pk = meta.pk.to_python(new_pk)
+            elif meta.pk is not None and meta.pk.auto_increment and cursor.lastrowid:
+                # A single multi-row INSERT assigns contiguous rowids ending at
+                # lastrowid — safe to backfill in order.
+                last = cursor.lastrowid
+                for offset, obj in enumerate(reversed(objects)):
+                    obj.pk = meta.pk.to_python(last - offset)
         return objects
 
     # -- write operations -------------------------------------------------
@@ -467,14 +565,16 @@ class QuerySet:
             return meta.pk.to_python(backend.last_insert_id(cursor, meta.pk.column))
         return meta.pk.to_python(cursor.lastrowid) if meta.pk else None
 
-    def _update_instance(self, instance) -> None:
+    def _update_instance(self, instance, only: set[str] | None = None) -> None:
         backend = self._backend
         meta = self._meta
         assignments = {
             field.column: field.to_db(instance._value_of(field), backend)
             for field in meta.fields
-            if not field.primary_key
+            if not field.primary_key and (only is None or field.name in only)
         }
+        if not assignments:
+            return
         sql, params = self._compiler().update(
             meta, assignments, [Q(pk=instance.pk)]
         )
