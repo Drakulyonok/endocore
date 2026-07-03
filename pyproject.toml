@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "endocore"
+version = "0.1.0"
+description = "File-based ASGI backend framework where the folder tree is the API."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Daniel" }]
+keywords = ["asgi", "framework", "file-based-routing", "web"]
+
+# The whole idea (tree magic, resolver, loader, Request/Response, CLI) is written
+# from stdlib. The only thing taken from outside is the HTTP transport.
+dependencies = ["uvicorn>=0.29"]
+
+[project.optional-dependencies]
+dev = ["watchfiles>=0.21", "pytest>=8"]
+
+[project.scripts]
+end = "endocore.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["endocore*"]
+
+[tool.pytest.ini_options]
+testpaths = ["example/Tests"]
