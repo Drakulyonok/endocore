@@ -19,7 +19,11 @@ dependencies = ["uvicorn>=0.29"]
 [project.optional-dependencies]
 # ORM: SQLite works out of the box (stdlib). PostgreSQL needs the psycopg driver.
 postgres = ["psycopg[binary]>=3.1"]
-dev = ["watchfiles>=0.21", "pytest>=8", "psycopg[binary]>=3.1"]
+# Encrypted FileField storage needs a real, vetted AEAD implementation.
+files = ["cryptography>=41"]
+# In-process dev watcher.
+watch = ["watchfiles>=0.21"]
+dev = ["watchfiles>=0.21", "pytest>=8", "psycopg[binary]>=3.1", "cryptography>=41"]
 
 [project.scripts]
 end = "endocore.cli.main:main"

@@ -36,5 +36,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns a process exit code."""
     parser = build_parser()
-    args = parser.parse_args(argv)
+    # parse_known_args lets `end test -q -k name` pass flags straight to pytest
+    # without the argparse REMAINDER quirk that needs a leading `--`.
+    args, extra = parser.parse_known_args(argv)
+    if getattr(args, "command", None) == "test":
+        args.pytest_args = list(getattr(args, "pytest_args", [])) + extra
+    elif extra:
+        parser.error(f"unrecognized arguments: {' '.join(extra)}")
     return args.func(args)

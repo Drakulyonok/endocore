@@ -14,9 +14,9 @@ from pathlib import Path
 
 def register(subparsers) -> None:
     parser = subparsers.add_parser("test", help="run user tests via pytest")
-    # REMAINDER lets flags like -q / -k pass straight through to pytest.
+    # Flags like -q / -k are collected by main() via parse_known_args and appended.
     parser.add_argument(
-        "pytest_args", nargs=argparse.REMAINDER,
+        "pytest_args", nargs="*",
         help="extra arguments passed straight to pytest (e.g. -q -k name)",
     )
     parser.set_defaults(func=run)

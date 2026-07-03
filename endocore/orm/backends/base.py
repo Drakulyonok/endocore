@@ -82,6 +82,10 @@ class BaseBackend:
         """SQL column type for a field (without PK/NULL clauses)."""
         raise NotImplementedError
 
+    def auto_pk_sql(self, field) -> str:
+        """Full column definition for an auto-increment primary key."""
+        return self.autoincrement_pk_sql
+
     # -- connection (overridden per dialect) -----------------------------
 
     def connect(self, **params):

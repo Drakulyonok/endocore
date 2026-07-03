@@ -59,3 +59,50 @@ class Response:
     @classmethod
     def text(cls, content: str, status: int = 200, headers: dict[str, str] | None = None) -> "Response":
         return cls(content, status=status, headers=headers, media_type="text/plain; charset=utf-8")
+
+
+def _to_bytes(chunk: Any) -> bytes:
+    if isinstance(chunk, (bytes, bytearray)):
+        return bytes(chunk)
+    return str(chunk).encode("utf-8")
+
+
+class StreamingResponse:
+    """A response whose body is produced incrementally (no Content-Length).
+
+    ``content`` may be any sync or async iterable of ``bytes``/``str`` chunks —
+    each is written to ``send`` with ``more_body=True`` until the stream ends.
+    """
+
+    def __init__(
+        self,
+        content: Any,
+        status: int = 200,
+        headers: dict[str, str] | None = None,
+        media_type: str = "application/octet-stream",
+    ) -> None:
+        self.content = content
+        self.status = status
+        self.media_type = media_type
+        self.headers = headers or {}
+
+    async def _aiter(self):
+        content = self.content
+        if hasattr(content, "__aiter__"):
+            async for chunk in content:
+                yield chunk
+        else:
+            for chunk in content:
+                yield chunk
+
+    async def __call__(self, send: Callable[[dict], Awaitable[None]]) -> None:
+        raw_headers: list[tuple[bytes, bytes]] = [
+            (b"content-type", self.media_type.encode("latin-1")),
+        ]
+        for name, value in self.headers.items():
+            raw_headers.append((name.encode("latin-1"), str(value).encode("latin-1")))
+
+        await send({"type": "http.response.start", "status": self.status, "headers": raw_headers})
+        async for chunk in self._aiter():
+            await send({"type": "http.response.body", "body": _to_bytes(chunk), "more_body": True})
+        await send({"type": "http.response.body", "body": b"", "more_body": False})

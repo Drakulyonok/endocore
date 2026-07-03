@@ -120,5 +120,11 @@ class Registry:
             return Resolution(None, METHOD_NOT_ALLOWED, tuple(sorted(node.handlers)))
         return Resolution(None, NOT_FOUND)
 
+    def latest_version(self) -> str | None:
+        """The newest registered version (e.g. ``"v2"``), or ``None`` if empty."""
+        if not self._versions:
+            return None
+        return max(self._versions, key=lambda v: int(v[1:]))
+
     def __len__(self) -> int:
         return self._count

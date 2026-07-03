@@ -55,6 +55,8 @@ class QuerySet:
         self._result_cache: list | None = None
         self._values_fields: tuple[str, ...] | None = None
         self._values_flat = False
+        self._distinct = False
+        self._select_related: list[str] = []
 
     # -- infra ------------------------------------------------------------
 
@@ -76,6 +78,8 @@ class QuerySet:
         clone._offset = self._offset
         clone._values_fields = self._values_fields
         clone._values_flat = self._values_flat
+        clone._distinct = self._distinct
+        clone._select_related = list(self._select_related)
         return clone
 
     def _connection(self):
@@ -99,6 +103,16 @@ class QuerySet:
     def order_by(self, *fields: str) -> "QuerySet":
         clone = self._clone()
         clone._order_by = list(fields)
+        return clone
+
+    def distinct(self) -> "QuerySet":
+        clone = self._clone()
+        clone._distinct = True
+        return clone
+
+    def select_related(self, *paths: str) -> "QuerySet":
+        clone = self._clone()
+        clone._select_related = list(self._select_related) + list(paths)
         return clone
 
     def all(self) -> "QuerySet":
@@ -145,10 +159,75 @@ class QuerySet:
                 kwargs[field.name] = value
         return self.model(**kwargs)
 
+    # -- relational (join) support ---------------------------------------
+
+    def _uses_joins(self) -> bool:
+        from endocore.orm.compiler import split_lookup
+
+        if self._select_related:
+            return True
+        for spec in self._order_by:
+            name = spec[1:] if spec.startswith("-") else spec
+            if "__" in name:
+                return True
+        return any(self._q_has_relation(node) for node in self._wheres)
+
+    def _q_has_relation(self, node: Q) -> bool:
+        from endocore.orm.compiler import split_lookup
+
+        for child in node.children:
+            if isinstance(child, Q):
+                if self._q_has_relation(child):
+                    return True
+            else:
+                field_name, _ = split_lookup(child[0])
+                if "__" in field_name:
+                    return True
+        return False
+
+    @staticmethod
+    def _instance_from_fields(model, field_values: dict) -> Any:
+        kwargs: dict[str, Any] = {}
+        for field, value in field_values.items():
+            if isinstance(field, ForeignKey):
+                kwargs[field.id_attr_name] = value
+            else:
+                kwargs[field.name] = value
+        return model(**kwargs)
+
+    def _row_to_instance_joined(self, result_map, row) -> Any:
+        from collections import defaultdict
+
+        data: dict[tuple, dict] = defaultdict(dict)
+        for (path, field), raw in zip(result_map, row):
+            data[path][field] = field.to_python(raw)
+
+        base = self._instance_from_fields(self.model, data[()])
+        built: dict[tuple, Any] = {(): base}
+
+        for path in sorted((p for p in data if p != ()), key=len):
+            field_values = data[path]
+            related_model = next(iter(field_values)).model
+            pk_field = related_model._meta.pk
+            related = None
+            if field_values.get(pk_field) is not None:
+                related = self._instance_from_fields(related_model, field_values)
+
+            parent = built.get(path[:-1])
+            if parent is not None:
+                setattr(parent, f"_{path[-1]}_cache", related)
+            built[path] = related
+
+        return base
+
     # -- evaluation -------------------------------------------------------
 
     def _fetch(self) -> list:
         if self._result_cache is not None:
+            return self._result_cache
+
+        if self._uses_joins():
+            self._result_cache = self._fetch_joined()
             return self._result_cache
 
         columns = self._select_columns()
@@ -159,6 +238,7 @@ class QuerySet:
             limit=self._limit,
             offset=self._offset,
             columns=columns,
+            distinct=self._distinct,
         )
         cursor = self._connection().execute(sql, params)
         rows = cursor.fetchall()
@@ -178,6 +258,21 @@ class QuerySet:
 
         self._result_cache = result
         return result
+
+    def _fetch_joined(self) -> list:
+        if self._values_fields is not None:
+            raise FieldError("values()/values_list() with relational lookups is not supported yet")
+        sql, params, result_map = self._compiler().build_joined(
+            self._meta,
+            wheres=self._wheres,
+            order_by=self._order_by,
+            select_related=self._select_related,
+            distinct=self._distinct,
+            limit=self._limit,
+            offset=self._offset,
+        )
+        rows = self._connection().execute(sql, params).fetchall()
+        return [self._row_to_instance_joined(result_map, row) for row in rows]
 
     def __iter__(self) -> Iterator:
         return iter(self._fetch())
@@ -236,12 +331,59 @@ class QuerySet:
         return result[0] if result else None
 
     def count(self) -> int:
-        sql, params = self._compiler().count(self._meta, wheres=self._wheres)
+        if self._uses_joins() and not self._distinct:
+            sql, params = self._compiler().count_joined(self._meta, wheres=self._wheres)
+        else:
+            sql, params = self._compiler().count(self._meta, wheres=self._wheres, distinct=self._distinct)
         cursor = self._connection().execute(sql, params)
         return int(cursor.fetchone()[0])
 
     def exists(self) -> bool:
         return bool(self[:1]._fetch())
+
+    def aggregate(self, **kwargs) -> dict:
+        from endocore.orm.expressions import Aggregate
+
+        frags, keys = [], []
+        for key, agg in kwargs.items():
+            if not isinstance(agg, Aggregate):
+                raise FieldError(f"aggregate() values must be aggregates, got {agg!r}")
+            frags.append(agg.as_sql(self._meta, self._backend))
+            keys.append(key)
+        sql, params = self._compiler().aggregate(self._meta, frags, self._wheres)
+        row = self._connection().execute(sql, params).fetchone()
+        return {key: row[i] for i, key in enumerate(keys)}
+
+    def earliest(self, field: str):
+        return self._edge(field)
+
+    def latest(self, field: str):
+        return self._edge("-" + field)
+
+    def _edge(self, order_field: str):
+        result = self.order_by(order_field)[:1]._fetch()
+        if not result:
+            raise self.model.DoesNotExist(
+                f"{self.model.__name__} matching query does not exist"
+            )
+        return result[0]
+
+    def get_or_create(self, defaults: dict | None = None, **kwargs):
+        try:
+            return self.get(**kwargs), False
+        except self.model.DoesNotExist:
+            return self.create(**{**kwargs, **(defaults or {})}), True
+
+    def update_or_create(self, defaults: dict | None = None, **kwargs):
+        defaults = defaults or {}
+        try:
+            obj = self.get(**kwargs)
+        except self.model.DoesNotExist:
+            return self.create(**{**kwargs, **defaults}), True
+        for name, value in defaults.items():
+            setattr(obj, name, value)
+        obj.save()
+        return obj, False
 
     def create(self, **kwargs: Any):
         instance = self.model(**kwargs)
@@ -249,21 +391,49 @@ class QuerySet:
         return instance
 
     def bulk_create(self, objects: list) -> list:
+        """Insert many rows in one statement. pks are populated only where the
+        backend supports RETURNING (Postgres); on SQLite they stay unset."""
+        if not objects:
+            return objects
+        backend = self._backend
+        meta = self._meta
+        insert_fields = [f for f in meta.fields if not f.auto_increment]
+        columns = [f.column for f in insert_fields]
+
+        rows = []
         for obj in objects:
-            obj.save()
+            obj._apply_auto_now(adding=True)
+            for f in meta.fields:
+                f.pre_save(obj)
+            obj.full_clean()
+            rows.append([f.to_db(obj._value_of(f), backend) for f in insert_fields])
+
+        sql, params, returning = self._compiler().insert_many(meta, columns, rows)
+        conn = self._connection()
+        with conn.atomic():
+            cursor = conn.execute(sql, params, write=True)
+            if returning:
+                ids = [r[0] for r in cursor.fetchall()]
+                for obj, new_pk in zip(objects, ids):
+                    obj.pk = meta.pk.to_python(new_pk)
         return objects
 
     # -- write operations -------------------------------------------------
 
     def _assignments_from_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         from endocore.orm.model import Model
+        from endocore.orm.expressions import Combinable
 
         backend = self._backend
         assignments: dict[str, Any] = {}
         for name, value in kwargs.items():
             field = self._meta.pk if name == "pk" else self._meta.get_field(name)
+            if isinstance(value, Combinable):
+                assignments[field.column] = value  # F()/expression, compiled later
+                continue
             if isinstance(value, Model):
                 value = value.pk
+            field.validate(value)
             assignments[field.column] = field.to_db(value, backend)
         return assignments
 
@@ -286,7 +456,7 @@ class QuerySet:
         columns: list[str] = []
         values: list = []
         for field in meta.fields:
-            if field.primary_key and field.internal_type == "AutoField" and instance._value_of(field) is None:
+            if field.auto_increment and instance._value_of(field) is None:
                 continue  # let the DB assign the pk
             columns.append(field.column)
             values.append(field.to_db(instance._value_of(field), backend))

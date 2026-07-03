@@ -58,3 +58,21 @@ class Request:
         if not raw:
             return None
         return json.loads(raw)
+
+    async def stream(self):
+        """Yield the request body in chunks as they arrive (for large uploads).
+
+        Consumes ``receive`` directly, so don't mix with ``body()``/``json()`` on
+        the same request. If the body was already buffered, yields it once.
+        """
+        if self._body is not None:
+            if self._body:
+                yield self._body
+            return
+        more = True
+        while more:
+            message = await self._receive()
+            chunk = message.get("body", b"")
+            if chunk:
+                yield chunk
+            more = message.get("more_body", False)

@@ -2,6 +2,39 @@
 
 All notable changes to EndoCore are documented here.
 
+## [0.3.0b1] — 2026-07-03 — third Beta: ORM completeness, encrypted files, deferrals
+
+### Added — ORM
+- **Many more field types**: `SmallIntegerField`, `PositiveSmallIntegerField`,
+  `PositiveIntegerField`, `PositiveBigIntegerField`, `BigAutoField`, `SlugField`,
+  `EmailField`, `URLField`, `GenericIPAddressField`, `UUIDField`, `JSONField`
+  (JSONB on Postgres), `BinaryField`, `TimeField`, `DurationField`.
+- **Validators** run on the write path (`save`/`create`/`update`): `choices`,
+  length, positivity, email/URL/slug/IP formats; `full_clean()`.
+- **Encrypted `FileField`** — files stored in any folder, **encrypted at rest**
+  with AES-256-GCM. The DB keeps only an opaque key; if the storage leaks the
+  files are unrecoverable without the separate key, and tampering is detected.
+  `configure_storage(root=..., key=...)`, `generate_key()`.
+- **Relational queries**: cross-table lookups (`filter(city__country__name=...)`)
+  and ordering across relations via LEFT JOINs, plus `select_related(...)`.
+- **Expressions**: `F` (`update(views=F('views') + 1)`) and aggregates
+  `aggregate(Count/Sum/Avg/Min/Max)`.
+- **QuerySet**: `distinct()`, `earliest()`/`latest()`, `get_or_create()`,
+  `update_or_create()`, single-statement `bulk_create()`, `db_index` + index DDL.
+
+### Added — framework (first-Beta deferrals)
+- **Default-version alias** (opt-in): `Application(default_version="latest")` /
+  `end dev --default-version latest` resolves a version-less path to the newest
+  version and logs which one served it (strict 404 stays the default).
+- **Request streaming** (`Request.stream()`) and `StreamingResponse`.
+- **In-process dev watcher** (`watchfiles`) rebuilds the route tree on change
+  without a process restart (`Application.reload()`).
+- **`end test`** now passes pytest flags directly (`end test -q -k name`).
+
+### Changed
+- Optional extras: `endocore[files]` (cryptography), `endocore[watch]`.
+- Version -> 0.3.0b1. 102 tests total.
+
 ## [0.2.0b1] — 2026-07-03 — second Beta: the ORM
 
 A small, secure, Django-flavoured ORM for **SQLite** and **PostgreSQL**.

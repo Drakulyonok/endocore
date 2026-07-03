@@ -1,6 +1,6 @@
 # EndoCore
 
-**Status: Beta (0.2.0b1) — usable.** · Python ≥ 3.11 · core dependency (`uvicorn`) · optional `psycopg` for Postgres
+**Status: Beta (0.3.0b1) — usable.** · Python ≥ 3.11 · core dependency (`uvicorn`) · optional `psycopg` (Postgres), `cryptography` (encrypted files)
 
 **File-based ASGI backend framework — the folder tree *is* the API — with a small, secure ORM.**
 
@@ -170,10 +170,37 @@ User.objects.values_list("name", flat=True)                # projections
 ```
 
 Lookups: `exact iexact contains icontains startswith endswith gt gte lt lte in
-isnull range`. Fields: `AutoField Integer BigInteger Char Text Boolean Float
-Decimal DateTime Date ForeignKey`. Transactions via `with endocore.orm.atomic():`.
+isnull range`. Fields include ints (incl. Small/Positive), `Float`, `Decimal`,
+`Char`/`Text`/`Slug`/`Email`/`URL`/`GenericIPAddress`, `UUID`, `JSON`, `Binary`,
+`Date`/`DateTime`/`Time`/`Duration`, `ForeignKey`, and an encrypted `FileField`.
+Transactions via `with endocore.orm.atomic():`.
 
-PostgreSQL needs the driver: `pip install "endocore[postgres]"`.
+**Relations & expressions** (Django-level):
+
+```python
+Person.objects.filter(city__country__name="France")     # cross-table (JOIN)
+Person.objects.select_related("city__country")           # fetch related in one query
+Post.objects.update(views=F("views") + 1)                # F expressions
+Post.objects.aggregate(total=Sum("views"), n=Count("*")) # aggregates
+Row.objects.distinct(); Row.objects.get_or_create(...)   # + earliest/latest/bulk_create
+```
+
+**Encrypted files** — stored in any folder, **encrypted at rest** (AES-256-GCM):
+if the storage leaks, files are unrecoverable without the separate key.
+
+```python
+from endocore.orm import configure_storage, generate_key
+
+configure_storage(root="/var/data/uploads", key=generate_key())  # key -> keep it safe
+
+class Doc(Model):
+    file = fields.FileField(upload_to="docs")
+
+d = Doc.objects.create(file=b"...bytes...")   # written encrypted; DB stores only a key
+d.file.read()                                 # decrypts on demand
+
+PostgreSQL needs the driver: `pip install "endocore[postgres]"`; encrypted files:
+`pip install "endocore[files]"`.
 
 ## Getting started
 

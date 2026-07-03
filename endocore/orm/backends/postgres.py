@@ -15,12 +15,20 @@ class PostgresBackend(BaseBackend):
 
     _TYPES = {
         "IntegerField": "INTEGER",
+        "SmallIntegerField": "SMALLINT",
         "BigIntegerField": "BIGINT",
         "BooleanField": "BOOLEAN",
         "FloatField": "DOUBLE PRECISION",
         "TextField": "TEXT",
         "DateTimeField": "TIMESTAMP",
         "DateField": "DATE",
+        "TimeField": "TIME",
+        "DurationField": "BIGINT",
+        "UUIDField": "UUID",
+        "JSONField": "JSONB",
+        "BinaryField": "BYTEA",
+        "GenericIPAddressField": "VARCHAR(39)",
+        "FileField": "VARCHAR(255)",
     }
 
     def column_type(self, field) -> str:
@@ -32,6 +40,9 @@ class PostgresBackend(BaseBackend):
         if internal == "ForeignKey":
             return "INTEGER"
         return self._TYPES.get(internal, "TEXT")
+
+    def auto_pk_sql(self, field) -> str:
+        return "BIGSERIAL PRIMARY KEY" if field.internal_type == "BigAutoField" else "SERIAL PRIMARY KEY"
 
     def connect(self, **params):
         import psycopg  # lazy: only needed when a Postgres connection is opened

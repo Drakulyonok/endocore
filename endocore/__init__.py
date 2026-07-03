@@ -8,9 +8,17 @@ Public API surface. User handlers import from here:
 from endocore.core.application import Application
 from endocore.core.exceptions import HTTPError
 from endocore.core.request import Request
-from endocore.core.response import Response
+from endocore.core.response import Response, StreamingResponse
 from endocore.core.logging import get_logger
 
-__version__ = "0.2.0b1"
+__version__ = "0.3.0b1"
 
-__all__ = ["Application", "Request", "Response", "HTTPError", "get_logger", "__version__"]
+__all__ = [
+    "Application",
+    "Request",
+    "Response",
+    "StreamingResponse",
+    "HTTPError",
+    "get_logger",
+    "__version__",
+]

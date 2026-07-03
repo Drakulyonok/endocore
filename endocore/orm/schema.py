@@ -14,8 +14,8 @@ from endocore.orm.fields import ForeignKey
 def _column_def(backend, field) -> str:
     col = backend.quote(field.column)
 
-    if field.internal_type == "AutoField":
-        return f"{col} {backend.autoincrement_pk_sql}"
+    if field.auto_increment:
+        return f"{col} {backend.auto_pk_sql(field)}"
 
     parts = [col, backend.column_type(field)]
     if field.primary_key:
@@ -24,6 +24,24 @@ def _column_def(backend, field) -> str:
         parts.append("UNIQUE")
     parts.append("NULL" if field.null else "NOT NULL")
     return " ".join(parts)
+
+
+def _index_statements(model, backend) -> list[str]:
+    """CREATE INDEX for every field marked db_index (and every ForeignKey)."""
+    from endocore.orm.fields import ForeignKey
+
+    meta = model._meta
+    statements: list[str] = []
+    for field in meta.fields:
+        if field.primary_key or field.unique:
+            continue
+        if field.db_index or isinstance(field, ForeignKey):
+            index_name = f"ix_{meta.table}_{field.column}"
+            statements.append(
+                f"CREATE INDEX IF NOT EXISTS {backend.quote(index_name)} "
+                f"ON {backend.quote(meta.table)} ({backend.quote(field.column)})"
+            )
+    return statements
 
 
 def create_table_sql(model, backend, *, if_not_exists: bool = True) -> str:
@@ -47,6 +65,8 @@ def create_table_sql(model, backend, *, if_not_exists: bool = True) -> str:
 def create_table(model, *, using: str = "default", if_not_exists: bool = True) -> None:
     conn = get_connection(using)
     conn.executescript(create_table_sql(model, conn.backend, if_not_exists=if_not_exists))
+    for statement in _index_statements(model, conn.backend):
+        conn.executescript(statement)
 
 
 def drop_table(model, *, using: str = "default", if_exists: bool = True) -> None:

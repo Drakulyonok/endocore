@@ -15,12 +15,20 @@ class SQLiteBackend(BaseBackend):
 
     _TYPES = {
         "IntegerField": "INTEGER",
+        "SmallIntegerField": "INTEGER",
         "BigIntegerField": "BIGINT",
         "BooleanField": "INTEGER",
         "FloatField": "REAL",
         "TextField": "TEXT",
         "DateTimeField": "TEXT",
         "DateField": "TEXT",
+        "TimeField": "TEXT",
+        "DurationField": "BIGINT",
+        "UUIDField": "CHAR(32)",
+        "JSONField": "TEXT",
+        "BinaryField": "BLOB",
+        "GenericIPAddressField": "VARCHAR(39)",
+        "FileField": "VARCHAR(255)",
     }
 
     def column_type(self, field) -> str:
@@ -32,6 +40,9 @@ class SQLiteBackend(BaseBackend):
         if internal == "ForeignKey":
             return "INTEGER"
         return self._TYPES.get(internal, "TEXT")
+
+    def auto_pk_sql(self, field) -> str:
+        return "INTEGER PRIMARY KEY AUTOINCREMENT"
 
     def connect(self, **params):
         import sqlite3

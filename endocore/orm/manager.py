@@ -33,6 +33,12 @@ class Manager:
     def order_by(self, *fields) -> QuerySet:
         return self.get_queryset().order_by(*fields)
 
+    def distinct(self) -> QuerySet:
+        return self.get_queryset().distinct()
+
+    def select_related(self, *paths) -> QuerySet:
+        return self.get_queryset().select_related(*paths)
+
     def values(self, *fields) -> QuerySet:
         return self.get_queryset().values(*fields)
 
@@ -59,3 +65,18 @@ class Manager:
 
     def bulk_create(self, objects: list) -> list:
         return self.get_queryset().bulk_create(objects)
+
+    def aggregate(self, **kwargs):
+        return self.get_queryset().aggregate(**kwargs)
+
+    def earliest(self, field: str):
+        return self.get_queryset().earliest(field)
+
+    def latest(self, field: str):
+        return self.get_queryset().latest(field)
+
+    def get_or_create(self, defaults: dict | None = None, **kwargs):
+        return self.get_queryset().get_or_create(defaults, **kwargs)
+
+    def update_or_create(self, defaults: dict | None = None, **kwargs):
+        return self.get_queryset().update_or_create(defaults, **kwargs)

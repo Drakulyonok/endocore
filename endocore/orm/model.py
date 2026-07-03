@@ -6,7 +6,7 @@ import datetime
 from typing import Any
 
 from endocore.orm.exceptions import DoesNotExist, FieldError, MultipleObjectsReturned
-from endocore.orm.fields import AutoField, DateTimeField, Field, ForeignKey
+from endocore.orm.fields import AutoField, DateTimeField, Field, FileDescriptor, FileField, ForeignKey
 
 
 class Options:
@@ -90,6 +90,8 @@ class ModelBase(type):
             field.bind(field._pending_name, cls)
             if isinstance(field, ForeignKey):
                 setattr(cls, field.name, ForeignObjectDescriptor(field))
+            elif isinstance(field, FileField):
+                setattr(cls, field.name, FileDescriptor(field))
 
         table = getattr(meta, "table", None) or name.lower()
         cls._meta = Options(cls, table, fields)
@@ -172,11 +174,19 @@ class Model(metaclass=ModelBase):
 
     # -- persistence ------------------------------------------------------
 
+    def full_clean(self) -> None:
+        """Validate every field value; raises ``ValidationError`` on the first bad one."""
+        for field in self._meta.fields:
+            field.validate(self._value_of(field))
+
     def save(self) -> "Model":
         from endocore.orm.manager import get_queryset
 
         adding = self.pk is None
         self._apply_auto_now(adding=adding)
+        for field in self._meta.fields:
+            field.pre_save(self)  # FileField encrypts + writes here
+        self.full_clean()
         qs = get_queryset(type(self))
         if adding:
             new_pk = qs._insert_instance(self)
