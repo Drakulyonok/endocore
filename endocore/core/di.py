@@ -119,10 +119,43 @@ async def _resolve(func, name, param, annotation, request, app, cache, websocket
         if provider is not None:
             return await _resolve_provider(provider, request, app, cache, websocket)
 
+    if request is not None and is_pydantic_model(annotation):
+        return await _validate_body(annotation, request)
+
     if default is not _EMPTY:
         return default
 
     raise DIError(f"cannot resolve parameter {name!r} of {getattr(func, '__name__', func)!r}")
+
+
+def is_pydantic_model(annotation) -> bool:
+    """Whether ``annotation`` is a pydantic ``BaseModel`` subclass (v1 or v2)."""
+    if not isinstance(annotation, type):
+        return False
+    try:
+        from pydantic import BaseModel
+    except ImportError:
+        return False
+    return issubclass(annotation, BaseModel)
+
+
+async def _validate_body(model, request):
+    """Parse and validate the JSON body into a pydantic model (422 on error)."""
+    from pydantic import ValidationError
+
+    from endocore.core.exceptions import UnprocessableEntity
+
+    data = await request.json()
+    try:
+        if hasattr(model, "model_validate"):  # pydantic v2
+            return model.model_validate(data or {})
+        return model.parse_obj(data or {})    # pydantic v1
+    except ValidationError as exc:
+        errors = [
+            {"field": ".".join(str(p) for p in err.get("loc", ())), "message": err.get("msg", "invalid")}
+            for err in exc.errors()
+        ]
+        raise UnprocessableEntity(errors) from None
 
 
 async def _resolve_depends(dep: Depends, request, app, cache, websocket=None) -> Any:

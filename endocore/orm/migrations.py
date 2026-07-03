@@ -42,6 +42,24 @@ def build_state(models, backend) -> dict:
     return {"tables": tables, "through": through, "indexes": indexes}
 
 
+def _rebuild(table: str, create_sql: str, from_cols: dict, to_cols: dict, q) -> list[str]:
+    """Recreate ``table`` with a new schema, copying columns common to both.
+
+    The portable way to change a column definition (SQLite can't ALTER COLUMN):
+    create a new table, copy data, drop the old, rename the new into place.
+    """
+    temp = table + "__new"
+    temp_create = create_sql.replace(q(table), q(temp), 1)
+    common = [c for c in to_cols if c in from_cols]
+    cols_sql = ", ".join(q(c) for c in common)
+    return [
+        temp_create,
+        f"INSERT INTO {q(temp)} ({cols_sql}) SELECT {cols_sql} FROM {q(table)}",
+        f"DROP TABLE {q(table)}",
+        f"ALTER TABLE {q(temp)} RENAME TO {q(table)}",
+    ]
+
+
 def diff_state(old: dict, new: dict, backend) -> tuple[list[str], list[str]]:
     """Return (forward_sql, reverse_sql) turning ``old`` into ``new``."""
     forward: list[str] = []
@@ -70,6 +88,14 @@ def diff_state(old: dict, new: dict, backend) -> tuple[list[str], list[str]]:
             continue
         old_cols = old_tables[table]["coldefs"]
         new_cols = new_tables[table]["coldefs"]
+        # A changed definition of an existing column can't be done with a simple
+        # ALTER portably (SQLite), so rebuild the whole table.
+        altered = any(c in old_cols and c in new_cols and old_cols[c] != new_cols[c]
+                      for c in new_cols)
+        if altered:
+            forward.extend(_rebuild(table, new_tables[table]["create"], old_cols, new_cols, q))
+            reverse = _rebuild(table, old_tables[table]["create"], new_cols, old_cols, q) + reverse
+            continue
         for col, ddl in new_cols.items():
             if col not in old_cols:
                 forward.append(f"ALTER TABLE {q(table)} ADD COLUMN {ddl}")
@@ -156,9 +182,33 @@ class Migrator:
 
     # -- commands ---------------------------------------------------------
 
-    def makemigrations(self, name: str | None = None) -> str | None:
+    def makemigrations(self, name: str | None = None, renames: dict | None = None) -> str | None:
         new_state = build_state(self.models, self.backend)
-        forward, reverse = diff_state(self._last_state(), new_state, self.backend)
+        old_state = self._last_state()
+        q = self.backend.quote
+
+        rename_forward: list[str] = []
+        rename_reverse: list[str] = []
+        if renames:
+            import copy as _copy
+
+            old_state = _copy.deepcopy(old_state)
+            for target, new_col in renames.items():
+                table, _, old_col = target.partition(".")
+                tdef = old_state.get("tables", {}).get(table)
+                if tdef and old_col in tdef["coldefs"]:
+                    ddl = tdef["coldefs"].pop(old_col)
+                    tdef["coldefs"][new_col] = ddl.replace(q(old_col), q(new_col), 1)
+                rename_forward.append(
+                    f"ALTER TABLE {q(table)} RENAME COLUMN {q(old_col)} TO {q(new_col)}"
+                )
+                rename_reverse.insert(
+                    0, f"ALTER TABLE {q(table)} RENAME COLUMN {q(new_col)} TO {q(old_col)}"
+                )
+
+        forward, reverse = diff_state(old_state, new_state, self.backend)
+        forward = rename_forward + forward
+        reverse = reverse + rename_reverse
         if not forward:
             return None
         self.dir.mkdir(parents=True, exist_ok=True)

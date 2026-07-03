@@ -24,6 +24,24 @@ def _summary(entry) -> str:
     return doc.splitlines()[0] if doc else f"{entry.spec.method} {entry.spec.url}"
 
 
+def _body_schema(entry) -> dict:
+    """If a handler parameter is a pydantic model, use its JSON schema for the body."""
+    from endocore.core.di import is_pydantic_model
+
+    try:
+        import typing
+
+        hints = typing.get_type_hints(entry.handler)
+    except Exception:  # noqa: BLE001
+        hints = {}
+    for annotation in hints.values():
+        if is_pydantic_model(annotation):
+            if hasattr(annotation, "model_json_schema"):
+                return annotation.model_json_schema()
+            return annotation.schema()  # pydantic v1
+    return {"type": "object"}
+
+
 def generate_openapi(app, *, title: str = "EndoCore API", version: str = "1.0.0") -> dict:
     paths: dict[str, dict] = {}
 
@@ -45,7 +63,7 @@ def generate_openapi(app, *, title: str = "EndoCore API", version: str = "1.0.0"
             operation["parameters"] = params
         if spec.method in _BODY_METHODS:
             operation["requestBody"] = {
-                "content": {"application/json": {"schema": {"type": "object"}}}
+                "content": {"application/json": {"schema": _body_schema(entry)}}
             }
         paths.setdefault(path, {})[spec.method.lower()] = operation
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import copy
 from typing import Any, Iterator
 
@@ -553,6 +554,60 @@ class QuerySet:
         if not ids:
             return {}
         return {obj.pk: obj for obj in self.filter(pk__in=ids)}
+
+    # -- async API (runs the sync ORM in a threadpool; non-blocking for ASGI) --
+
+    def __aiter__(self):
+        return self._aiter()
+
+    async def _aiter(self):
+        for row in await asyncio.to_thread(self._fetch):
+            yield row
+
+    async def alist(self) -> list:
+        return await asyncio.to_thread(self._fetch)
+
+    async def aget(self, *args, **kwargs):
+        return await asyncio.to_thread(lambda: self.get(*args, **kwargs))
+
+    async def afirst(self):
+        return await asyncio.to_thread(self.first)
+
+    async def alast(self):
+        return await asyncio.to_thread(self.last)
+
+    async def acount(self) -> int:
+        return await asyncio.to_thread(self.count)
+
+    async def aexists(self) -> bool:
+        return await asyncio.to_thread(self.exists)
+
+    async def acreate(self, **kwargs):
+        return await asyncio.to_thread(lambda: self.create(**kwargs))
+
+    async def aupdate(self, **kwargs) -> int:
+        return await asyncio.to_thread(lambda: self.update(**kwargs))
+
+    async def adelete(self) -> int:
+        return await asyncio.to_thread(self.delete)
+
+    async def aaggregate(self, **kwargs) -> dict:
+        return await asyncio.to_thread(lambda: self.aggregate(**kwargs))
+
+    async def aget_or_create(self, defaults: dict | None = None, **kwargs):
+        return await asyncio.to_thread(lambda: self.get_or_create(defaults, **kwargs))
+
+    async def aupdate_or_create(self, defaults: dict | None = None, **kwargs):
+        return await asyncio.to_thread(lambda: self.update_or_create(defaults, **kwargs))
+
+    async def abulk_create(self, objects: list) -> list:
+        return await asyncio.to_thread(lambda: self.bulk_create(objects))
+
+    async def abulk_update(self, objects: list, fields: list) -> int:
+        return await asyncio.to_thread(lambda: self.bulk_update(objects, fields))
+
+    async def ain_bulk(self, ids) -> dict:
+        return await asyncio.to_thread(lambda: self.in_bulk(ids))
 
     def aggregate(self, **kwargs) -> dict:
         from endocore.orm.expressions import Aggregate

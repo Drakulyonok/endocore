@@ -2,6 +2,31 @@
 
 All notable changes to EndoCore are documented here.
 
+## [0.6.0b1] — 2026-07-03 — sixth Beta: async ORM, ws pub/sub, pydantic, migration alter/rename
+
+**1632 tests.**
+
+### Added
+- **Async ORM** — non-blocking DB access for ASGI via a threadpool offload:
+  `aget`, `acreate`, `acount`, `aexists`, `afirst`/`alast`, `alist`,
+  `aupdate`/`adelete`, `aget_or_create`, `abulk_create`/`abulk_update`,
+  `aaggregate`, async iteration (`async for ... in qs`), and instance
+  `asave`/`adelete`/`arefresh_from_db`.
+- **WebSocket pub/sub** — `WebSocketManager` with rooms:
+  `connect`/`disconnect`/`broadcast`/`broadcast_json`/`send_to`, dead-connection
+  cleanup (single-process; pair with Redis for multi-worker).
+- **Pydantic integration** (`endocore[pydantic]`) — a handler param annotated
+  with a `BaseModel` is validated from the JSON body (422 with field errors on
+  failure); its JSON schema is included in the OpenAPI `requestBody`.
+- **Migrations: column alter + rename** — a changed column definition triggers a
+  portable table **rebuild** (data preserved, reversible); explicit column
+  **rename** via `end makemigrations --rename table.old=new` (`RENAME COLUMN`).
+
+### Not included (by design)
+- **GraphQL** — deliberately excluded: it conflicts with the file-as-route idea.
+- Native async drivers (asyncpg/aiosqlite) — the threadpool offload gives
+  non-blocking access over the existing sync ORM for both SQLite and Postgres.
+
 ## [0.5.0b1] — 2026-07-03 — fifth Beta: WebSockets, cache, OpenAPI, integrations, ORM/migrations maxed
 
 **1600 tests.**

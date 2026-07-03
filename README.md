@@ -1,8 +1,8 @@
 # EndoCore
 
-**Status: Beta (0.5.0b1) — client-usable.** · Python ≥ 3.11 · core dependency (`uvicorn`) · optional `psycopg`, `cryptography`, `redis`, `celery` · **1600 tests**
+**Status: Beta (0.6.0b1) — client-usable.** · Python ≥ 3.11 · core dependency (`uvicorn`) · optional `psycopg`, `cryptography`, `redis`, `celery`, `pydantic` · **1632 tests**
 
-WebSockets · cache layer · OpenAPI/Swagger · Redis/Celery/Email integrations · ORM with relations, `annotate`, migrations + rollback.
+Async-capable ORM · WebSockets + pub/sub · cache · OpenAPI/Swagger · pydantic bodies · Redis/Celery/Email integrations · migrations with rollback, alter & rename.
 
 **File-based ASGI backend framework — the folder tree *is* the API — with a small, secure ORM.**
 
@@ -284,6 +284,48 @@ author.book_set.all()                                  # reverse FK
 Author.objects.annotate(n=Count("books"))              # aggregate over a relation
 Book.objects.only("title"); Book.objects.defer("body") # partial fetch
 Book.objects.bulk_update(books, ["price"])             # batch write
+```
+
+## Async ORM (non-blocking for ASGI)
+
+The sync ORM runs in a threadpool, so handlers stay non-blocking:
+
+```python
+user = await User.objects.aget(id=1)
+await User.objects.acreate(name="Ada")
+async for u in User.objects.filter(active=True):
+    ...
+await user.asave()
+```
+
+## WebSocket pub/sub
+
+```python
+from endocore import WebSocketManager
+chat = WebSocketManager()
+
+async def handler(websocket):               # Api/v1/Chat/Socket.py
+    await chat.connect(websocket, room="lobby")
+    try:
+        async for msg in websocket.iter_text():
+            await chat.broadcast(msg, room="lobby")
+    finally:
+        chat.disconnect(websocket)
+```
+
+## Typed bodies (pydantic, optional)
+
+A handler param typed as a pydantic model is validated from the JSON body
+(422 on error) and documented in `/docs`:
+
+```python
+from pydantic import BaseModel
+class UserIn(BaseModel):
+    name: str
+    age: int
+
+async def handler(request, data: UserIn):   # POST body -> validated UserIn
+    return Response.json({"name": data.name}, status=201)
 ```
 
 ## Getting started

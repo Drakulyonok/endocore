@@ -26,9 +26,10 @@ from endocore.core.exceptions import (
 from endocore.core.request import Request
 from endocore.core.response import Response, StreamingResponse
 from endocore.core.websocket import WebSocket, WebSocketDisconnect
+from endocore.core.pubsub import WebSocketManager
 from endocore.core.logging import get_logger
 
-__version__ = "0.5.0b1"
+__version__ = "0.6.0b1"
 
 __all__ = [
     "Application",
@@ -37,6 +38,7 @@ __all__ = [
     "StreamingResponse",
     "WebSocket",
     "WebSocketDisconnect",
+    "WebSocketManager",
     "UploadFile",
     "FormData",
     "QueryParams",

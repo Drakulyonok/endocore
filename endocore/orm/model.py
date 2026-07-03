@@ -6,6 +6,7 @@ inherited by subclasses — handy for shared columns like created/updated.
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import datetime
 from typing import Any, Iterable
@@ -343,3 +344,14 @@ class Model(metaclass=ModelBase):
             else:
                 self.__dict__[field.name] = fresh.__dict__.get(field.name)
         return self
+
+    # -- async API (threadpool offload) -----------------------------------
+
+    async def asave(self, update_fields: Iterable[str] | None = None) -> "Model":
+        return await asyncio.to_thread(lambda: self.save(update_fields))
+
+    async def adelete(self) -> None:
+        return await asyncio.to_thread(self.delete)
+
+    async def arefresh_from_db(self) -> "Model":
+        return await asyncio.to_thread(self.refresh_from_db)

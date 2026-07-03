@@ -60,6 +60,44 @@ class Manager:
     def bulk_update(self, objects: list, fields: list) -> int:
         return self.get_queryset().bulk_update(objects, fields)
 
+    # -- async API --------------------------------------------------------
+
+    async def aget(self, *args, **kwargs):
+        return await self.get_queryset().aget(*args, **kwargs)
+
+    async def acreate(self, **kwargs):
+        return await self.get_queryset().acreate(**kwargs)
+
+    async def acount(self) -> int:
+        return await self.get_queryset().acount()
+
+    async def aexists(self) -> bool:
+        return await self.get_queryset().aexists()
+
+    async def afirst(self):
+        return await self.get_queryset().afirst()
+
+    async def alast(self):
+        return await self.get_queryset().alast()
+
+    async def alist(self) -> list:
+        return await self.get_queryset().alist()
+
+    async def aget_or_create(self, defaults: dict | None = None, **kwargs):
+        return await self.get_queryset().aget_or_create(defaults, **kwargs)
+
+    async def aupdate_or_create(self, defaults: dict | None = None, **kwargs):
+        return await self.get_queryset().aupdate_or_create(defaults, **kwargs)
+
+    async def abulk_create(self, objects: list) -> list:
+        return await self.get_queryset().abulk_create(objects)
+
+    async def abulk_update(self, objects: list, fields: list) -> int:
+        return await self.get_queryset().abulk_update(objects, fields)
+
+    async def aaggregate(self, **kwargs) -> dict:
+        return await self.get_queryset().aaggregate(**kwargs)
+
     def values(self, *fields) -> QuerySet:
         return self.get_queryset().values(*fields)
 

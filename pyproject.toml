@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "endocore"
-version = "0.5.0b1"
-description = "File-based ASGI backend framework (folder tree = API) with a secure ORM, DI, WebSockets, cache, OpenAPI, migrations, and service integrations."
+version = "0.6.0b1"
+description = "File-based ASGI backend framework (folder tree = API) with an async-capable secure ORM, DI, WebSockets + pub/sub, cache, OpenAPI, migrations, and service integrations."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -26,6 +26,8 @@ watch = ["watchfiles>=0.21"]
 # Service integrations.
 redis = ["redis>=5"]
 celery = ["celery>=5"]
+# Typed request bodies + richer OpenAPI schemas.
+pydantic = ["pydantic>=2"]
 dev = ["watchfiles>=0.21", "pytest>=8", "psycopg[binary]>=3.1", "cryptography>=41"]
 
 [project.scripts]

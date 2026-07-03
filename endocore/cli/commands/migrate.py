@@ -45,6 +45,10 @@ def _migrator():
 def register(subparsers) -> None:
     make = subparsers.add_parser("makemigrations", help="generate a migration from model changes")
     make.add_argument("name", nargs="?", default=None, help="optional migration name")
+    make.add_argument(
+        "--rename", action="append", default=[], metavar="TABLE.OLD=NEW",
+        help="rename a column (repeatable), e.g. --rename user.fullname=name",
+    )
     make.set_defaults(func=run_make)
 
     mig = subparsers.add_parser("migrate", help="apply pending migrations")
@@ -68,7 +72,14 @@ def run_make(args: argparse.Namespace) -> int:
     migrator = _migrator()
     if migrator is None:
         return 2
-    created = migrator.makemigrations(args.name)
+    renames = {}
+    for spec in getattr(args, "rename", []) or []:
+        target, _, new_col = spec.partition("=")
+        if not new_col:
+            print(f"error: bad --rename {spec!r} (expected TABLE.OLD=NEW)")
+            return 2
+        renames[target] = new_col
+    created = migrator.makemigrations(args.name, renames=renames or None)
     if created is None:
         print("no changes detected")
     else:
