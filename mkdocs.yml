@@ -1,0 +1,126 @@
+site_name: EndoCore
+site_description: File-based ASGI backend framework — the folder tree is the API.
+site_author: Drakulyonok
+site_url: https://endocore.readthedocs.io/
+repo_url: https://github.com/Drakulyonok/endocore
+repo_name: Drakulyonok/endocore
+copyright: Copyright &copy; 2026 Drakulyonok — MIT License
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - pymdownx.emoji
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: ru
+          name: Русский
+          build: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Drakulyonok/endocore
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/endocore/
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - getting-started/installation.md
+      - getting-started/quickstart.md
+      - getting-started/tutorial.md
+      - getting-started/philosophy.md
+  - Guide:
+      - guide/architecture.md
+      - guide/routing.md
+      - guide/versioning.md
+      - guide/request-response.md
+      - guide/middleware.md
+      - guide/dependency-injection.md
+      - guide/configuration.md
+      - guide/exceptions.md
+      - guide/websockets.md
+      - guide/cache.md
+      - guide/background-lifecycle.md
+      - guide/logging.md
+      - guide/security.md
+  - ORM:
+      - orm/index.md
+      - orm/models.md
+      - orm/fields.md
+      - orm/queries.md
+      - orm/relations.md
+      - orm/async.md
+      - orm/migrations.md
+      - orm/transactions.md
+      - orm/files.md
+  - Extensions:
+      - extensions/index.md
+      - extensions/redis.md
+      - extensions/celery.md
+      - extensions/email.md
+  - CLI: cli.md
+  - Cookbook: cookbook.md
+  - Examples: examples.md
+  - Deployment: deployment.md
+  - Benchmarks: benchmarks.md
+  - vs FastAPI: comparison.md
+  - API Reference: reference.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md

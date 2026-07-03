@@ -18,7 +18,7 @@ import traceback
 from pathlib import Path
 from typing import Any
 
-from endocore.core.di import ProviderRegistry, solve
+from endocore.core.di import ProviderRegistry, is_trivial_request_handler, solve
 from endocore.core.discovery import scan_routes
 from endocore.core.exceptions import BootError, HTTPError
 from endocore.core.loader import load_handler
@@ -240,8 +240,10 @@ class Application:
         request.path_params = resolution.match.params
         entry = resolution.match.entry
         try:
-            kwargs = await solve(entry.handler, request, self)
-            result = entry.handler(**kwargs)
+            if is_trivial_request_handler(entry.handler):
+                result = entry.handler(request)          # fast path: handler(request)
+            else:
+                result = entry.handler(**await solve(entry.handler, request, self))
             if inspect.isawaitable(result):
                 result = await result
         except HTTPError as exc:

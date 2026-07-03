@@ -1,5 +1,14 @@
 # EndoCore
 
+<p>
+  <a href="https://pypi.org/project/endocore/"><img alt="PyPI" src="https://img.shields.io/pypi/v/endocore.svg"></a>
+  <img alt="Python" src="https://img.shields.io/badge/python-3.11%2B-blue.svg">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-1632%20passing-brightgreen.svg">
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-green.svg">
+</p>
+
+📖 **Documentation:** https://endocore.readthedocs.io (EN / RU) · see [`HOSTING.md`](HOSTING.md) to deploy it free.
+
 **Status: Beta (0.6.0b1) — client-usable.** · Python ≥ 3.11 · core dependency (`uvicorn`) · optional `psycopg`, `cryptography`, `redis`, `celery`, `pydantic` · **1632 tests**
 
 Async-capable ORM · WebSockets + pub/sub · cache · OpenAPI/Swagger · pydantic bodies · Redis/Celery/Email integrations · migrations with rollback, alter & rename.

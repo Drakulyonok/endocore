@@ -62,6 +62,28 @@ def _signature(func: Callable) -> inspect.Signature:
     return sig
 
 
+_trivial_cache: dict[Callable, bool] = {}
+
+
+def is_trivial_request_handler(func: Callable) -> bool:
+    """True if ``func`` is exactly ``handler(request)`` — the common case.
+
+    Lets the dispatcher skip full dependency resolution and call the handler
+    directly with the request, which is both correct and faster.
+    """
+    cached = _trivial_cache.get(func)
+    if cached is None:
+        params = list(_signature(func).parameters.values())
+        cached = (
+            len(params) == 1
+            and params[0].name == "request"
+            and params[0].default is _EMPTY
+            and params[0].kind in (params[0].POSITIONAL_OR_KEYWORD, params[0].POSITIONAL_ONLY)
+        )
+        _trivial_cache[func] = cached
+    return cached
+
+
 def _hints(func: Callable) -> dict:
     """Resolved type hints, so string annotations (``from __future__ import
     annotations``) still map to real types for type-based injection."""

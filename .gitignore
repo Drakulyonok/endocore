@@ -17,3 +17,7 @@ env/
 .idea/
 .vscode/
 .claude/settings.local.json
+site/
+.cache/
+benchmarks/_bench_app/
+*.zip
