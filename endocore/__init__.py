@@ -11,6 +11,6 @@ from endocore.core.request import Request
 from endocore.core.response import Response
 from endocore.core.logging import get_logger
 
-__version__ = "0.1.0b1"
+__version__ = "0.2.0b1"
 
 __all__ = ["Application", "Request", "Response", "HTTPError", "get_logger", "__version__"]

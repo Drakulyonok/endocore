@@ -2,6 +2,35 @@
 
 All notable changes to EndoCore are documented here.
 
+## [0.2.0b1] — 2026-07-03 — second Beta: the ORM
+
+A small, secure, Django-flavoured ORM for **SQLite** and **PostgreSQL**.
+
+### Added
+- **Models** — declarative `Model` classes with a metaclass and `_meta`; fields:
+  `AutoField`, `IntegerField`, `BigIntegerField`, `CharField`, `TextField`,
+  `BooleanField`, `FloatField`, `DecimalField`, `DateTimeField` (`auto_now`),
+  `DateField`, `ForeignKey` (lazy related-object load).
+- **QuerySet** — lazy & chainable: `filter/exclude/get/all/order_by/values/
+  values_list/count/exists/first/last/create/update/delete/bulk_create`, slicing
+  for `LIMIT`/`OFFSET`, and **Q objects** (`&`, `|`, `~`).
+- **Lookups** — `exact iexact contains icontains startswith istartswith endswith
+  iendswith gt gte lt lte in isnull range`.
+- **Backends** — `sqlite` (stdlib) and `postgres` (`psycopg`), sharing one
+  security-critical base; correct per-dialect placeholders, quoting, autoincrement
+  and `RETURNING`/`lastrowid`.
+- **Connections & transactions** — `configure()` / `connect()`, lazy open,
+  `with atomic():` blocks; credentials never logged.
+- **Schema** — `create_table` / `create_all` / `drop_table` DDL from models.
+- **Security (the focus)** — values are always driver-bound (never formatted into
+  SQL); identifiers validated (`^[A-Za-z_]\w*$`) and quoted; lookups are a strict
+  whitelist; LIKE wildcards in user input escaped with `ESCAPE`; `LIMIT`/`OFFSET`
+  coerced to ints. 34 ORM tests including explicit injection tests.
+- **Example** — `Post` model + ORM-backed `GET`/`POST /v1/post` endpoints.
+
+### Changed
+- `endocore[postgres]` optional extra for the psycopg driver.
+
 ## [0.1.0b1] — 2026-07-03 — first Beta
 
 First usable Beta. The framework boots a real app, serves it over uvicorn, and

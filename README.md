@@ -1,8 +1,8 @@
 # EndoCore
 
-**Status: Beta (0.1.0b1) — usable.** · Python ≥ 3.11 · one dependency (`uvicorn`)
+**Status: Beta (0.2.0b1) — usable.** · Python ≥ 3.11 · core dependency (`uvicorn`) · optional `psycopg` for Postgres
 
-**File-based ASGI backend framework — the folder tree *is* the API.**
+**File-based ASGI backend framework — the folder tree *is* the API — with a small, secure ORM.**
 
 No manual routers, no registration decorators, no config. Drop a file in the
 right folder and the endpoint exists. Routing, versioning and the CLI are all
@@ -53,6 +53,11 @@ endocore/                    # THE FRAMEWORK (installable package, `end` CLI)
     templates.py             # scaffolding file bodies
     commands/                # create / dev / version / test
   asgi.py                    # create_app() factory for uvicorn
+  orm/                       # small secure ORM (SQLite + PostgreSQL)
+    backends/                # base (security-critical) + sqlite + postgres dialects
+    fields.py  model.py      # declarative models + metaclass
+    query.py   compiler.py   # QuerySet, Q objects, parameterized SQL compiler
+    connection.py  schema.py # connections/transactions + create_table
 
 example/                     # a demo application served by `end`
   Api/                       # file-based routes (folder = segment, file = method)
@@ -138,6 +143,38 @@ middlewares = [auth_middleware]   # first = outermost (inside framework logging)
 Each middleware is `async def mw(request, call_next) -> Response`: return an
 early `Response` to short-circuit, or `await call_next(request)` to pass inward.
 
+## ORM (SQLite & PostgreSQL)
+
+A small Django-flavoured ORM. **Security is the point:** every value is bound by
+the driver (never string-formatted into SQL), identifiers are validated and
+quoted, only whitelisted lookups produce SQL, LIKE wildcards in user input are
+escaped, and `LIMIT`/`OFFSET` are coerced to integers.
+
+```python
+from endocore.orm import Model, fields, configure, create_all, Q
+
+class User(Model):
+    name   = fields.CharField(max_length=100)
+    age    = fields.IntegerField(default=0)
+    active = fields.BooleanField(default=True)
+
+configure(backend="sqlite", database="app.db")     # or backend="postgres", host=..., dbname=...
+create_all(User)
+
+User.objects.create(name="Ada", age=36)
+User.objects.filter(age__gte=18).order_by("-age")           # QuerySet, lazy
+User.objects.filter(Q(age__lt=18) | Q(name__icontains="a")) # Q objects
+User.objects.get(name="Ada")                                # -> instance / DoesNotExist
+User.objects.filter(active=True).update(age=0)              # bulk update
+User.objects.values_list("name", flat=True)                # projections
+```
+
+Lookups: `exact iexact contains icontains startswith endswith gt gte lt lte in
+isnull range`. Fields: `AutoField Integer BigInteger Char Text Boolean Float
+Decimal DateTime Date ForeignKey`. Transactions via `with endocore.orm.atomic():`.
+
+PostgreSQL needs the driver: `pip install "endocore[postgres]"`.
+
 ## Getting started
 
 ```bash
@@ -145,6 +182,7 @@ py -3 -m pip install -e .
 cd example
 end dev                 # http://127.0.0.1:8000
 # GET /v1/user/role, GET /v1/user/42, POST /v1/user/role, GET /v1/user/0 -> 404
+# GET /v1/post, POST /v1/post {"title": "..."}   (ORM-backed)
 ```
 
 Run the framework's own tests with `pytest`; run an app's tests with `end test`.
