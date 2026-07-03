@@ -2,6 +2,34 @@
 
 All notable changes to EndoCore are documented here.
 
+## [0.5.0b1] — 2026-07-03 — fifth Beta: WebSockets, cache, OpenAPI, integrations, ORM/migrations maxed
+
+**1600 tests.**
+
+### Added — framework
+- **WebSockets**: file-based routing via ``Socket.py`` (also ``Ws.py``); a
+  ``WebSocket`` class (`accept`, `receive_text/json/bytes`, `send_*`,
+  `iter_text/json`, `close`); DI-aware dispatch; unknown routes rejected (4404).
+- **Cache layer**: `configure_cache` / `get_cache` with in-memory and Redis
+  backends, TTL, `incr`, and a `@cached` decorator (sync + async).
+- **OpenAPI 3.0**: `generate_openapi`, served at `/openapi.json` and Swagger UI
+  at `/docs`; `end openapi` writes/prints the schema.
+- **Service integrations** (`endocore.extensions`): a pluggable `Extension`
+  base + `extensions.py` loader (setup + lifespan), with shipped
+  `RedisExtension`, `CeleryExtension`, `EmailExtension` (stdlib SMTP), and
+  `CacheExtension`. Optional deps: `endocore[redis]`, `endocore[celery]`.
+
+### Added — ORM
+- **Reverse relations**: `author.book_set` / `related_name`, reverse OneToOne
+  (`author.profile`).
+- **`annotate()`** with aggregates over a field, a M2M, or a reverse FK
+  (`Author.objects.annotate(n=Count("books"))`).
+- **`only()` / `defer()`** (partial column fetch), **`bulk_update()`**.
+
+### Added — migrations
+- **Index diffing** (CREATE/DROP INDEX in migrations), **`end showmigrations`**,
+  **`end sqlmigrate <name>`**, **`end migrate <target>`**.
+
 ## [0.4.0b1] — 2026-07-03 — fourth Beta: client-usable (DI, batteries, migrations)
 
 Big round toward "client usable": convenience, security, and a lot more surface.

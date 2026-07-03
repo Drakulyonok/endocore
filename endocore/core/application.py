@@ -41,10 +41,15 @@ class Application:
         dev: bool = False,
         default_version: str | None = None,
         max_body_size: int | None = 16 * 1024 * 1024,
+        openapi: bool = True,
+        openapi_title: str = "EndoCore API",
     ) -> None:
         self.app_dir = Path(app_dir).resolve()
         self.api_dir = self.app_dir / "Api"
         self.dev = dev
+        #: serve built-in /openapi.json and /docs
+        self.openapi = openapi
+        self.openapi_title = openapi_title
         #: ``"latest"`` resolves a version-less path to the newest version (logged);
         #: ``None`` keeps the strict 404 behaviour.
         self.default_version = default_version
@@ -81,6 +86,7 @@ class Application:
 
         self._load_hooks()
         self._load_providers()
+        self._load_extensions()
 
         # Build the request pipeline once; middlewares are fixed after boot.
         # ``_dispatch`` reads ``self.registry`` on every call, so reload() only
@@ -149,6 +155,28 @@ class Application:
         except BaseException as exc:  # noqa: BLE001 - never crash boot on user code
             self.boot_errors.append(BootError(self.app_dir / "hooks.py", exc, traceback.format_exc()))
 
+    def _load_extensions(self) -> None:
+        """Load service integrations from the app's ``extensions.py`` (an
+        ``extensions`` list). Each is wired via ``setup`` and its
+        ``startup``/``shutdown`` are added to the lifespan hooks."""
+        self.extensions = []
+        if not (self.app_dir / "extensions.py").is_file():
+            return
+        try:
+            sys.modules.pop("extensions", None)
+            module = importlib.import_module("extensions")
+            for ext in getattr(module, "extensions", []):
+                ext.setup(self)
+                self.extensions.append(ext)
+                if getattr(ext, "startup", None):
+                    self.on_startup.append(ext.startup)
+                if getattr(ext, "shutdown", None):
+                    self.on_shutdown.append(ext.shutdown)
+        except BaseException as exc:  # noqa: BLE001 - never crash boot on user code
+            self.boot_errors.append(
+                BootError(self.app_dir / "extensions.py", exc, traceback.format_exc())
+            )
+
     def provide(self, key, factory, *, singleton: bool = True) -> None:
         """Register an app-level dependency provider, resolvable by type or name."""
         self.providers.provide(key, factory, singleton=singleton)
@@ -189,6 +217,11 @@ class Application:
 
     async def _dispatch(self, request: Request) -> Response:
         """Terminal layer of the chain: resolve the route and call the handler."""
+        if self.openapi and request.method in ("GET", "HEAD"):
+            built_in = self._serve_docs(request)
+            if built_in is not None:
+                return built_in
+
         resolution = self.registry.resolve(request.method, request.path)
 
         # Opt-in: a version-less request may fall back to the newest version.
@@ -215,6 +248,16 @@ class Application:
             # Handlers may raise to short-circuit with a status (e.g. 404, 422).
             return Response.json({"error": exc.detail or "error"}, status=exc.status)
         return self._coerce(result)
+
+    def _serve_docs(self, request: Request):
+        """Built-in ``/openapi.json`` and ``/docs`` (Swagger UI)."""
+        from endocore.core.openapi import SWAGGER_UI_HTML, generate_openapi
+
+        if request.path == "/openapi.json":
+            return Response.json(generate_openapi(self, title=self.openapi_title))
+        if request.path == "/docs":
+            return Response(SWAGGER_UI_HTML, media_type="text/html; charset=utf-8")
+        return None
 
     def _resolve_default_version(self, request: Request):
         """When ``default_version == "latest"`` and the path has no version prefix,
@@ -261,8 +304,12 @@ class Application:
             await self._lifespan(receive, send)
             return
 
+        if scope_type == "websocket":
+            await self._handle_websocket(scope, receive, send)
+            return
+
         if scope_type != "http":
-            return  # websockets etc. are out of MVP scope
+            return
 
         request = Request(scope, receive, max_body_size=self.max_body_size)
         response = await self._pipeline(request)
@@ -298,6 +345,37 @@ class Application:
                         self.logger.error("shutdown hook failed:\n%s", traceback.format_exc().rstrip())
                 await send({"type": "lifespan.shutdown.complete"})
                 return
+
+    # -- websocket dispatch -----------------------------------------------
+
+    async def _handle_websocket(self, scope, receive, send) -> None:
+        from endocore.core.websocket import WebSocket, WebSocketDisconnect
+
+        resolution = self.registry.resolve("WEBSOCKET", scope["path"])
+        if resolution.match is None:
+            # Reject: consume the connect event, then close.
+            try:
+                await receive()
+            except Exception:  # noqa: BLE001
+                pass
+            await send({"type": "websocket.close", "code": 4404})
+            return
+
+        websocket = WebSocket(scope, receive, send)
+        websocket.path_params = resolution.match.params
+        entry = resolution.match.entry
+        try:
+            kwargs = await solve(entry.handler, None, self, websocket=websocket)
+            result = entry.handler(**kwargs)
+            if inspect.isawaitable(result):
+                await result
+        except WebSocketDisconnect:
+            pass
+        except Exception:  # noqa: BLE001 - log and close cleanly
+            self.logger.error("websocket handler failed:\n%s", traceback.format_exc().rstrip())
+            await websocket.close(code=1011)
+            return
+        await websocket.close()
 
     # -- dev watcher (in-process route reload) ----------------------------
 

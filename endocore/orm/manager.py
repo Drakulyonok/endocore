@@ -48,6 +48,18 @@ class Manager:
     def prefetch_related(self, *names) -> QuerySet:
         return self.get_queryset().prefetch_related(*names)
 
+    def only(self, *fields) -> QuerySet:
+        return self.get_queryset().only(*fields)
+
+    def defer(self, *fields) -> QuerySet:
+        return self.get_queryset().defer(*fields)
+
+    def annotate(self, **annotations) -> QuerySet:
+        return self.get_queryset().annotate(**annotations)
+
+    def bulk_update(self, objects: list, fields: list) -> int:
+        return self.get_queryset().bulk_update(objects, fields)
+
     def values(self, *fields) -> QuerySet:
         return self.get_queryset().values(*fields)
 

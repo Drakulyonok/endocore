@@ -48,11 +48,19 @@ def register(subparsers) -> None:
     make.set_defaults(func=run_make)
 
     mig = subparsers.add_parser("migrate", help="apply pending migrations")
+    mig.add_argument("target", nargs="?", default=None, help="migrate up to this migration")
     mig.set_defaults(func=run_migrate)
 
     rb = subparsers.add_parser("rollback", help="undo the most recent migration(s)")
     rb.add_argument("--steps", type=int, default=1, help="how many migrations to undo (default 1)")
     rb.set_defaults(func=run_rollback)
+
+    show = subparsers.add_parser("showmigrations", help="list migrations and their state")
+    show.set_defaults(func=run_show)
+
+    sqlm = subparsers.add_parser("sqlmigrate", help="print a migration's forward SQL")
+    sqlm.add_argument("name", help="migration name or prefix (e.g. 0001)")
+    sqlm.set_defaults(func=run_sqlmigrate)
 
 
 def run_make(args: argparse.Namespace) -> int:
@@ -73,12 +81,38 @@ def run_migrate(args: argparse.Namespace) -> int:
     migrator = _migrator()
     if migrator is None:
         return 2
-    done = migrator.migrate()
+    done = migrator.migrate(getattr(args, "target", None))
     if not done:
         print("no migrations to apply")
     else:
         for name in done:
             print(f"applied {name}")
+    return 0
+
+
+def run_show(args: argparse.Namespace) -> int:
+    _load_project(Path.cwd())
+    migrator = _migrator()
+    if migrator is None:
+        return 2
+    rows = migrator.showmigrations()
+    if not rows:
+        print("no migrations yet")
+    for name, applied in rows:
+        print(f"  [{'x' if applied else ' '}] {name}")
+    return 0
+
+
+def run_sqlmigrate(args: argparse.Namespace) -> int:
+    _load_project(Path.cwd())
+    migrator = _migrator()
+    if migrator is None:
+        return 2
+    try:
+        print(migrator.sqlmigrate(args.name))
+    except FileNotFoundError as exc:
+        print(f"error: {exc}")
+        return 2
     return 0
 
 

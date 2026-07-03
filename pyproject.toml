@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "endocore"
-version = "0.4.0b1"
-description = "File-based ASGI backend framework (folder tree = API) with a secure ORM, DI, and batteries-included middleware."
+version = "0.5.0b1"
+description = "File-based ASGI backend framework (folder tree = API) with a secure ORM, DI, WebSockets, cache, OpenAPI, migrations, and service integrations."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "Daniel" }]
+authors = [{ name = "Drakulyonok" }]
 keywords = ["asgi", "framework", "file-based-routing", "web"]
 
 # The whole idea (tree magic, resolver, loader, Request/Response, CLI) is written
@@ -23,6 +23,9 @@ postgres = ["psycopg[binary]>=3.1"]
 files = ["cryptography>=41"]
 # In-process dev watcher.
 watch = ["watchfiles>=0.21"]
+# Service integrations.
+redis = ["redis>=5"]
+celery = ["celery>=5"]
 dev = ["watchfiles>=0.21", "pytest>=8", "psycopg[binary]>=3.1", "cryptography>=41"]
 
 [project.scripts]

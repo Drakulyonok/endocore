@@ -7,6 +7,10 @@ class EndoCoreError(Exception):
     """Base class for all framework errors."""
 
 
+class ConfigurationError(EndoCoreError):
+    """The framework was misconfigured (cache backend, extension, ...)."""
+
+
 class HandlerContractError(EndoCoreError):
     """A handler file does not satisfy the endpoint contract.
 

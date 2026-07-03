@@ -81,7 +81,7 @@ async def _maybe_await(value: Any) -> Any:
     return value
 
 
-async def solve(func: Callable, request, app, cache: dict | None = None) -> dict:
+async def solve(func: Callable, request, app, cache: dict | None = None, *, websocket=None) -> dict:
     """Build the keyword arguments to call ``func`` with, resolving dependencies."""
     if cache is None:
         cache = {}
@@ -91,28 +91,33 @@ async def solve(func: Callable, request, app, cache: dict | None = None) -> dict
         if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
             continue
         annotation = hints.get(name, param.annotation)
-        kwargs[name] = await _resolve(func, name, param, annotation, request, app, cache)
+        kwargs[name] = await _resolve(func, name, param, annotation, request, app, cache, websocket)
     return kwargs
 
 
-async def _resolve(func, name, param, annotation, request, app, cache) -> Any:
+async def _resolve(func, name, param, annotation, request, app, cache, websocket=None) -> Any:
     from endocore.core.request import Request
+    from endocore.core.websocket import WebSocket
 
     default = param.default
 
     if isinstance(default, Depends):
-        return await _resolve_depends(default, request, app, cache)
+        return await _resolve_depends(default, request, app, cache, websocket)
 
     if name == "request" or annotation is Request:
         return request
 
-    if request is not None and name in request.path_params:
-        return request.path_params[name]
+    if name == "websocket" or annotation is WebSocket:
+        return websocket
+
+    scope_obj = request if request is not None else websocket
+    if scope_obj is not None and name in getattr(scope_obj, "path_params", {}):
+        return scope_obj.path_params[name]
 
     if app is not None:
         provider = app.get_provider(annotation, name)
         if provider is not None:
-            return await _resolve_provider(provider, request, app, cache)
+            return await _resolve_provider(provider, request, app, cache, websocket)
 
     if default is not _EMPTY:
         return default
@@ -120,21 +125,21 @@ async def _resolve(func, name, param, annotation, request, app, cache) -> Any:
     raise DIError(f"cannot resolve parameter {name!r} of {getattr(func, '__name__', func)!r}")
 
 
-async def _resolve_depends(dep: Depends, request, app, cache) -> Any:
+async def _resolve_depends(dep: Depends, request, app, cache, websocket=None) -> Any:
     key = dep.dependency
     if key in cache:
         return cache[key]
-    sub = await solve(dep.dependency, request, app, cache)
+    sub = await solve(dep.dependency, request, app, cache, websocket=websocket)
     value = await _maybe_await(dep.dependency(**sub))
     cache[key] = value
     return value
 
 
-async def _resolve_provider(provider, request, app, cache) -> Any:
+async def _resolve_provider(provider, request, app, cache, websocket=None) -> Any:
     factory, singleton = provider
     if singleton and factory in app._singletons:
         return app._singletons[factory]
-    sub = await solve(factory, request, app, cache)
+    sub = await solve(factory, request, app, cache, websocket=websocket)
     value = await _maybe_await(factory(**sub))
     if singleton:
         app._singletons[factory] = value

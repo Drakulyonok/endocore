@@ -22,6 +22,10 @@ HTTP_METHODS: frozenset[str] = frozenset(
     {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 )
 
+#: File stems that mark a websocket endpoint (mapped to the WEBSOCKET method).
+WEBSOCKET_STEMS: frozenset[str] = frozenset({"SOCKET", "WS", "WEBSOCKET"})
+WEBSOCKET_METHOD = "WEBSOCKET"
+
 #: First path/folder segment matching this is a version (TZ §5).
 VERSION_RE = re.compile(r"^v\d+$")
 
@@ -99,7 +103,9 @@ def scan_routes(api_dir: Path) -> tuple[list[RouteSpec], list[SkippedFile]]:
         parts = rel.parts  # e.g. ("v1", "User", "Role", "Post.py")
 
         method = file.stem.upper()
-        if method not in HTTP_METHODS:
+        if method in WEBSOCKET_STEMS:
+            method = WEBSOCKET_METHOD
+        elif method not in HTTP_METHODS:
             # Not an endpoint: service, util, __init__, or a helper module.
             continue
 

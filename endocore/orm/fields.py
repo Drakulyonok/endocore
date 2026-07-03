@@ -556,8 +556,10 @@ class ForeignKey(Field):
 
     internal_type = "ForeignKey"
 
-    def __init__(self, to, *, on_delete: str = "CASCADE", **kwargs: Any) -> None:
+    def __init__(self, to, *, on_delete: str = "CASCADE", related_name: str | None = None,
+                 **kwargs: Any) -> None:
         self.to = to
+        self.related_name = related_name
         key = on_delete.upper()
         if key not in _ON_DELETE:
             raise FieldError(
@@ -566,6 +568,11 @@ class ForeignKey(Field):
             )
         self.on_delete = key
         super().__init__(**kwargs)
+
+    def reverse_name(self) -> str:
+        if self.related_name:
+            return self.related_name
+        return f"{self.model.__name__.lower()}_set"
 
     def on_delete_sql(self) -> str:
         return _ON_DELETE[self.on_delete]
@@ -589,6 +596,9 @@ class OneToOneField(ForeignKey):
     def __init__(self, to, *, on_delete: str = "CASCADE", **kwargs: Any) -> None:
         kwargs.setdefault("unique", True)
         super().__init__(to, on_delete=on_delete, **kwargs)
+
+    def reverse_name(self) -> str:
+        return self.related_name or self.model.__name__.lower()
 
 
 class ManyToManyField(Field):

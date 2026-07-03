@@ -20,6 +20,7 @@ from endocore.orm.fields import (
     ForeignKey,
     ManyRelatedDescriptor,
     ManyToManyField,
+    OneToOneField,
 )
 
 #: All concrete (non-abstract) models, in definition order — used by migrations.
@@ -57,6 +58,8 @@ class Options:
         self.unique_together = _normalize_together(unique_together)
         self.indexes = [list(ix) for ix in (indexes or ())]
         self.many_to_many = list(many_to_many or ())
+        #: reverse relation name -> (source_model, fk_field)
+        self.reverse_relations: dict = {}
 
     def get_field(self, name: str) -> Field:
         try:
@@ -91,6 +94,35 @@ class ForeignObjectDescriptor:
         else:
             setattr(instance, self.id_attr, int(value))
         instance.__dict__.pop(self.cache_attr, None)
+
+
+class ReverseManyToOneDescriptor:
+    """``author.book_set`` -> a QuerySet of the related-many side of a FK."""
+
+    def __init__(self, source_model, field) -> None:
+        self.source_model = source_model
+        self.field = field
+
+    def __get__(self, instance, owner=None):
+        if instance is None:
+            return self
+        return self.source_model.objects.filter(**{self.field.name: instance})
+
+
+class ReverseOneToOneDescriptor:
+    """``author.profile`` -> the single related object of a OneToOneField (or None)."""
+
+    def __init__(self, source_model, field) -> None:
+        self.source_model = source_model
+        self.field = field
+
+    def __get__(self, instance, owner=None):
+        if instance is None:
+            return self
+        try:
+            return self.source_model.objects.get(**{self.field.name: instance})
+        except self.source_model.DoesNotExist:
+            return None
 
 
 def _inherited_fields(bases) -> list[Field]:
@@ -169,6 +201,14 @@ class ModelBase(type):
         for field in fields:
             if isinstance(field, ForeignKey):
                 setattr(cls, field.name, ForeignObjectDescriptor(field))
+                # Reverse accessor on the target model (author.book_set / author.profile).
+                reverse = field.reverse_name()
+                target = field.to
+                target._meta.reverse_relations[reverse] = (cls, field)
+                if isinstance(field, OneToOneField):
+                    setattr(target, reverse, ReverseOneToOneDescriptor(cls, field))
+                else:
+                    setattr(target, reverse, ReverseManyToOneDescriptor(cls, field))
             elif isinstance(field, FileField):
                 setattr(cls, field.name, FileDescriptor(field))
         for field in m2m:

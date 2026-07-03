@@ -18,7 +18,7 @@ from pathlib import Path
 
 from endocore.orm.connection import get_connection
 from endocore.orm.model import get_models
-from endocore.orm.schema import create_table_sql, through_table_sql, _column_def
+from endocore.orm.schema import create_table_sql, index_specs, through_table_sql, _column_def
 
 _MIGRATIONS_TABLE = "endocore_migrations"
 
@@ -27,6 +27,7 @@ def build_state(models, backend) -> dict:
     """Serializable snapshot of the schema implied by ``models``."""
     tables: dict = {}
     through: dict = {}
+    indexes: dict = {}
     for model in models:
         meta = model._meta
         coldefs = {f.column: _column_def(backend, f) for f in meta.fields}
@@ -36,7 +37,9 @@ def build_state(models, backend) -> dict:
         }
         for field in meta.many_to_many:
             through[field.through_table()] = {"create": through_table_sql(field, backend)}
-    return {"tables": tables, "through": through}
+        for name, sql in index_specs(model, backend).items():
+            indexes[name] = {"create": sql}
+    return {"tables": tables, "through": through, "indexes": indexes}
 
 
 def diff_state(old: dict, new: dict, backend) -> tuple[list[str], list[str]]:
@@ -87,6 +90,17 @@ def diff_state(old: dict, new: dict, backend) -> tuple[list[str], list[str]]:
             forward.append(f"DROP TABLE {q(name)}")
             reverse.insert(0, old_through[name]["create"])
 
+    # Indexes.
+    old_ix, new_ix = old.get("indexes", {}), new.get("indexes", {})
+    for name in new_ix:
+        if name not in old_ix:
+            forward.append(new_ix[name]["create"])
+            reverse.insert(0, f"DROP INDEX {q(name)}")
+    for name in old_ix:
+        if name not in new_ix:
+            forward.append(f"DROP INDEX {q(name)}")
+            reverse.insert(0, old_ix[name]["create"])
+
     return forward, reverse
 
 
@@ -134,10 +148,11 @@ class Migrator:
         return sorted(self.dir.glob("[0-9]*.json"))
 
     def _last_state(self) -> dict:
+        empty = {"tables": {}, "through": {}, "indexes": {}}
         files = self._files()
         if not files:
-            return {"tables": {}, "through": {}}
-        return json.loads(files[-1].read_text(encoding="utf-8")).get("state", {"tables": {}, "through": {}})
+            return empty
+        return json.loads(files[-1].read_text(encoding="utf-8")).get("state", empty)
 
     # -- commands ---------------------------------------------------------
 
@@ -153,20 +168,35 @@ class Migrator:
         (self.dir / filename).write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return filename
 
-    def migrate(self) -> list[str]:
+    def migrate(self, target: str | None = None) -> list[str]:
+        """Apply pending migrations (up to and including ``target`` if given)."""
         applied = set(self.applied())
         done: list[str] = []
         for file in self._files():
             name = file.stem
-            if name in applied:
-                continue
-            data = json.loads(file.read_text(encoding="utf-8"))
-            with self.conn.atomic():
-                for statement in data["forward"]:
-                    self.conn.executescript(statement)
-                self._record(name)
-            done.append(name)
+            if name not in applied:
+                data = json.loads(file.read_text(encoding="utf-8"))
+                with self.conn.atomic():
+                    for statement in data["forward"]:
+                        self.conn.executescript(statement)
+                    self._record(name)
+                done.append(name)
+            if target is not None and (name == target or name.startswith(target)):
+                break
         return done
+
+    def showmigrations(self) -> list[tuple[str, bool]]:
+        """Every migration file with whether it has been applied."""
+        applied = set(self.applied())
+        return [(f.stem, f.stem in applied) for f in self._files()]
+
+    def sqlmigrate(self, name: str) -> str:
+        """The forward SQL of a migration (matched by name/prefix)."""
+        for file in self._files():
+            if file.stem == name or file.stem.startswith(name):
+                data = json.loads(file.read_text(encoding="utf-8"))
+                return ";\n".join(data["forward"]) + ";"
+        raise FileNotFoundError(f"no migration matching {name!r}")
 
     def rollback(self, steps: int = 1) -> list[str]:
         applied = self.applied()

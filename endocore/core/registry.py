@@ -126,12 +126,12 @@ class Registry:
             return None
         return max(self._versions, key=lambda v: int(v[1:]))
 
-    def routes(self) -> list:
-        """All registered route specs (for ``end routes`` / introspection)."""
-        collected: list = []
+    def entries(self) -> list[HandlerEntry]:
+        """All registered handler entries (route + imported handler)."""
+        collected: list[HandlerEntry] = []
 
         def walk(node: RouteNode) -> None:
-            collected.extend(entry.spec for entry in node.handlers.values())
+            collected.extend(node.handlers.values())
             for child in node.static.values():
                 walk(child)
             if node.dynamic is not None:
@@ -140,6 +140,10 @@ class Registry:
         for root in self._versions.values():
             walk(root)
         return collected
+
+    def routes(self) -> list:
+        """All registered route specs (for ``end routes`` / introspection)."""
+        return [entry.spec for entry in self.entries()]
 
     def __len__(self) -> int:
         return self._count

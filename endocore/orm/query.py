@@ -59,6 +59,9 @@ class QuerySet:
         self._distinct = False
         self._select_related: list[str] = []
         self._prefetch: list[str] = []
+        self._only: tuple[str, ...] | None = None
+        self._defer: tuple[str, ...] | None = None
+        self._annotations: dict = {}
         self._is_empty = False
 
     # -- infra ------------------------------------------------------------
@@ -85,6 +88,9 @@ class QuerySet:
         clone._distinct = self._distinct
         clone._select_related = list(self._select_related)
         clone._prefetch = list(self._prefetch)
+        clone._only = self._only
+        clone._defer = self._defer
+        clone._annotations = dict(self._annotations)
         clone._is_empty = self._is_empty
         return clone
 
@@ -131,6 +137,30 @@ class QuerySet:
         clone._prefetch = list(self._prefetch) + list(names)
         return clone
 
+    def only(self, *fields: str) -> "QuerySet":
+        """Fetch only these columns (plus the pk); other fields default to None."""
+        clone = self._clone()
+        clone._only = fields
+        clone._defer = None
+        return clone
+
+    def defer(self, *fields: str) -> "QuerySet":
+        """Fetch all columns except these."""
+        clone = self._clone()
+        clone._defer = fields
+        clone._only = None
+        return clone
+
+    def annotate(self, **annotations) -> "QuerySet":
+        """Attach an aggregate over a relation/field to each row.
+
+            Author.objects.annotate(n=Count("books"))   # reverse FK
+            Book.objects.annotate(n=Count("tags"))       # M2M
+        """
+        clone = self._clone()
+        clone._annotations = {**self._annotations, **annotations}
+        return clone
+
     def all(self) -> "QuerySet":
         return self._clone()
 
@@ -169,7 +199,14 @@ class QuerySet:
         if self._values_fields is not None:
             return [self._meta.get_field(n).column if n != "pk" else self._meta.pk.column
                     for n in self._values_fields]
-        return [f.column for f in self._meta.fields]
+        fields = self._meta.fields
+        if self._only is not None:
+            keep = set(self._only) | {self._meta.pk.name}
+            fields = [f for f in fields if f.name in keep]
+        elif self._defer is not None:
+            drop = set(self._defer) - {self._meta.pk.name}
+            fields = [f for f in fields if f.name not in drop]
+        return [f.column for f in fields]
 
     def _row_to_instance(self, columns: list[str], row) -> Any:
         col_to_field = {f.column: f for f in self._meta.fields}
@@ -251,6 +288,10 @@ class QuerySet:
             return self._result_cache
         if self._is_empty:
             self._result_cache = []
+            return self._result_cache
+
+        if self._annotations:
+            self._result_cache = self._fetch_annotated()
             return self._result_cache
 
         if self._uses_joins():
@@ -351,6 +392,88 @@ class QuerySet:
         objmap = {o.pk: o for o in field.to.objects.filter(pk__in=list(ids))} if ids else {}
         for inst in instances:
             setattr(inst, f"_{field.name}_cache", objmap.get(getattr(inst, field.id_attr_name)))
+
+    # -- annotate (aggregate over a relation/field, GROUP BY base) --------
+
+    def _fetch_annotated(self) -> list:
+        from endocore.orm.fields import ManyToManyField
+
+        backend = self._backend
+        meta = self._meta
+        base = backend.quote(meta.table)
+        pk_col = f"{base}.{backend.quote(meta.pk.column)}"
+
+        base_cols = [f"{base}.{backend.quote(f.column)}" for f in meta.fields]
+        joins: list[str] = []
+        agg_selects: list[str] = []
+        aliases: list[str] = list(self._annotations)
+
+        for i, (alias, agg) in enumerate(self._annotations.items()):
+            target = agg.field
+            m2m = next((f for f in meta.many_to_many if f.name == target), None)
+            if target == "*" or target in meta.fields_by_name:
+                col = "*" if target == "*" else f"{base}.{backend.quote(meta.get_field(target).column)}"
+                agg_selects.append(f"{agg.function}({col})")
+            elif m2m is not None:
+                jt = backend.quote(f"a{i}")
+                joins.append(
+                    f"LEFT JOIN {backend.quote(m2m.through_table())} {jt} "
+                    f"ON {jt}.{backend.quote(m2m.source_column())} = {pk_col}"
+                )
+                agg_selects.append(f"{agg.function}({jt}.{backend.quote(m2m.target_column())})")
+            elif target in meta.reverse_relations:
+                source_model, fk = meta.reverse_relations[target]
+                src = backend.quote(f"a{i}")
+                joins.append(
+                    f"LEFT JOIN {backend.quote(source_model._meta.table)} {src} "
+                    f"ON {src}.{backend.quote(fk.column)} = {pk_col}"
+                )
+                agg_selects.append(f"{agg.function}({src}.{backend.quote(source_model._meta.pk.column)})")
+            else:
+                raise FieldError(f"annotate: {target!r} is not a field or relation of {self.model.__name__}")
+
+        select_sql = ", ".join(base_cols + agg_selects)
+        sql = f"SELECT {select_sql} FROM {base}"
+        if joins:
+            sql += " " + " ".join(joins)
+        where_sql, params = self._compiler()._where_clause(meta, self._wheres)
+        sql += where_sql
+        sql += " GROUP BY " + ", ".join(base_cols)
+        sql += self._compiler()._order_clause(meta, self._effective_order)
+        if self._limit is not None:
+            sql += f" LIMIT {backend.as_limit(self._limit)}"
+        if self._offset:
+            sql += f" OFFSET {backend.as_limit(self._offset)}"
+
+        rows = self._connection().execute(sql, params).fetchall()
+        columns = [f.column for f in meta.fields]
+        n = len(columns)
+        result = []
+        for row in rows:
+            instance = self._row_to_instance(columns, row[:n])
+            for j, alias in enumerate(aliases):
+                setattr(instance, alias, row[n + j])
+            result.append(instance)
+        return result
+
+    # -- bulk update ------------------------------------------------------
+
+    def bulk_update(self, objects: list, fields: list[str]) -> int:
+        """Write the given fields of each instance back to the DB (one UPDATE each)."""
+        if not objects:
+            return 0
+        backend = self._backend
+        meta = self._meta
+        field_objs = [meta.get_field(f) for f in fields]
+        conn = self._connection()
+        count = 0
+        with conn.atomic():
+            for obj in objects:
+                assignments = {f.column: f.to_db(obj._value_of(f), backend) for f in field_objs}
+                sql, params = self._compiler().update(meta, assignments, [Q(pk=obj.pk)])
+                conn.execute(sql, params, write=True)
+                count += 1
+        return count
 
     def __iter__(self) -> Iterator:
         return iter(self._fetch())

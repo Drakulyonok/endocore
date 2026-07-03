@@ -45,32 +45,34 @@ def _column_def(backend, field) -> str:
     return " ".join(parts)
 
 
-def _index_statements(model, backend) -> list[str]:
-    """CREATE INDEX for every field marked db_index (and every ForeignKey)."""
+def index_specs(model, backend) -> dict[str, str]:
+    """``{index_name: CREATE INDEX sql}`` for db_index fields, FKs, Meta.indexes."""
     from endocore.orm.fields import ForeignKey
 
     meta = model._meta
-    statements: list[str] = []
+    specs: dict[str, str] = {}
     for field in meta.fields:
         if field.primary_key or field.unique:
             continue
         if field.db_index or isinstance(field, ForeignKey):
-            index_name = f"ix_{meta.table}_{field.column}"
-            statements.append(
-                f"CREATE INDEX IF NOT EXISTS {backend.quote(index_name)} "
+            name = f"ix_{meta.table}_{field.column}"
+            specs[name] = (
+                f"CREATE INDEX IF NOT EXISTS {backend.quote(name)} "
                 f"ON {backend.quote(meta.table)} ({backend.quote(field.column)})"
             )
-
-    # Composite indexes declared via Meta.indexes = [["a", "b"], ...].
     for names in meta.indexes:
         cols = [meta.get_field(n).column for n in names]
-        index_name = "ix_" + meta.table + "_" + "_".join(cols)
+        name = "ix_" + meta.table + "_" + "_".join(cols)
         quoted = ", ".join(backend.quote(c) for c in cols)
-        statements.append(
-            f"CREATE INDEX IF NOT EXISTS {backend.quote(index_name)} "
+        specs[name] = (
+            f"CREATE INDEX IF NOT EXISTS {backend.quote(name)} "
             f"ON {backend.quote(meta.table)} ({quoted})"
         )
-    return statements
+    return specs
+
+
+def _index_statements(model, backend) -> list[str]:
+    return list(index_specs(model, backend).values())
 
 
 def create_table_sql(model, backend, *, if_not_exists: bool = True) -> str:

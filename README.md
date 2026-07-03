@@ -1,6 +1,8 @@
 # EndoCore
 
-**Status: Beta (0.4.0b1) — client-usable.** · Python ≥ 3.11 · core dependency (`uvicorn`) · optional `psycopg` (Postgres), `cryptography` (encrypted files) · **1510 tests**
+**Status: Beta (0.5.0b1) — client-usable.** · Python ≥ 3.11 · core dependency (`uvicorn`) · optional `psycopg`, `cryptography`, `redis`, `celery` · **1600 tests**
+
+WebSockets · cache layer · OpenAPI/Swagger · Redis/Celery/Email integrations · ORM with relations, `annotate`, migrations + rollback.
 
 **File-based ASGI backend framework — the folder tree *is* the API — with a small, secure ORM.**
 
@@ -235,7 +237,54 @@ end migrate
 end rollback            # undo the last migration
 ```
 
-Other CLI: `end new <Name>`, `end routes`, `end check`, `end doctor`.
+Other CLI: `end new <Name>`, `end routes`, `end check`, `end doctor`, `end openapi`.
+
+## Real-time, cache & integrations
+
+**WebSockets** — a file named `Socket.py` in the Api tree:
+
+```python
+# Api/v1/Chat/Socket.py  ->  ws /v1/chat
+async def handler(websocket):
+    await websocket.accept()
+    async for message in websocket.iter_text():
+        await websocket.send_text(f"echo: {message}")
+```
+
+**Cache** — `from endocore import get_cache, cached`:
+
+```python
+get_cache().set("k", {"v": 1}, ttl=60)
+
+@cached(ttl=30)
+async def expensive(x): ...
+```
+
+**OpenAPI** — served at `/openapi.json` and Swagger UI at `/docs` (also `end openapi`).
+
+**Service integrations** — list them in `extensions.py`; they register DI
+providers and hook the lifespan:
+
+```python
+# extensions.py
+from endocore.extensions import RedisExtension, CacheExtension, EmailExtension
+extensions = [
+    RedisExtension(url="redis://localhost:6379/0"),
+    CacheExtension(backend="redis"),
+    EmailExtension(host="smtp.example.com", port=587, use_tls=True),
+]
+```
+Ship your own by subclassing `Extension`. Optional deps: `endocore[redis]`,
+`endocore[celery]`.
+
+## ORM relations & aggregates
+
+```python
+author.book_set.all()                                  # reverse FK
+Author.objects.annotate(n=Count("books"))              # aggregate over a relation
+Book.objects.only("title"); Book.objects.defer("body") # partial fetch
+Book.objects.bulk_update(books, ["price"])             # batch write
+```
 
 ## Getting started
 

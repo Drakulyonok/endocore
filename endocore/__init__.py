@@ -6,6 +6,7 @@ Public API surface. User handlers import from here:
 """
 
 from endocore.core.application import Application
+from endocore.core.cache import cached, configure_cache, get_cache
 from endocore.core.config import Settings, env, load_dotenv
 from endocore.core.datastructures import FormData, QueryParams, UploadFile
 from endocore.core.di import Depends
@@ -24,15 +25,18 @@ from endocore.core.exceptions import (
 )
 from endocore.core.request import Request
 from endocore.core.response import Response, StreamingResponse
+from endocore.core.websocket import WebSocket, WebSocketDisconnect
 from endocore.core.logging import get_logger
 
-__version__ = "0.4.0b1"
+__version__ = "0.5.0b1"
 
 __all__ = [
     "Application",
     "Request",
     "Response",
     "StreamingResponse",
+    "WebSocket",
+    "WebSocketDisconnect",
     "UploadFile",
     "FormData",
     "QueryParams",
@@ -40,6 +44,9 @@ __all__ = [
     "Settings",
     "env",
     "load_dotenv",
+    "get_cache",
+    "configure_cache",
+    "cached",
     "get_logger",
     # HTTP exceptions
     "HTTPError",
