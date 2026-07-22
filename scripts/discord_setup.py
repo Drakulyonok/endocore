@@ -31,6 +31,12 @@ import time
 import urllib.error
 import urllib.request
 
+# Category/channel names use emoji; on Windows, stdout defaults to the
+# console's legacy codepage (e.g. cp1251), which can't encode them and
+# crashes print() after the API call already succeeded. Force UTF-8.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 API = "https://discord.com/api/v10"
 
 # Discord channel "type" values (https://discord.com/developers/docs/resources/channel).
