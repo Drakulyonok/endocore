@@ -42,8 +42,8 @@ with atomic("default"):         # a specific connection alias
 
 ## Async code: `aatomic()`
 
-In an async handler use the async twin — it acquires the transaction lock in a
-worker thread, so a contended lock never blocks the event loop:
+In an async handler use the async twin — it acquires a pooled connection in a
+worker thread, so waiting on an exhausted pool never blocks the event loop:
 
 ```python
 from endocore.orm import aatomic
@@ -64,7 +64,8 @@ same as `atomic()`. (Run the `a*` calls of one transaction sequentially — don'
 `gather` them.)
 
 Calling plain `with atomic():` on the event loop thread emits a
-`RuntimeWarning`: if the lock is contended it would block the whole loop.
+`RuntimeWarning`: if the pool is exhausted, waiting for a free connection
+would block the whole loop, not just the current request.
 
 ## How writes commit outside `atomic()`
 

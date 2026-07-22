@@ -66,7 +66,8 @@ async def handler(request: Request) -> Response:      # Api/v1/Post/Get.py
 
 Use `async with aatomic():` — `a*` calls inside the block join the transaction
 (ownership is a `contextvars` token that `asyncio.to_thread` propagates), and
-the lock is acquired off-loop. See [Transactions](transactions.md).
+the pooled connection is acquired off-loop, so waiting on an exhausted pool
+can't block the event loop. See [Transactions](transactions.md).
 
 ## Notes
 

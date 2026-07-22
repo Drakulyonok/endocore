@@ -67,7 +67,8 @@ async def handler(request: Request) -> Response:      # Api/v1/Post/Get.py
 
 Используйте `async with aatomic():` — `a*`-вызовы внутри блока присоединяются к
 транзакции (владение — токен в `contextvars`, который `asyncio.to_thread`
-переносит в тредпул), а лок берётся вне event loop'а. См.
+переносит в тредпул), а соединение из пула берётся вне event loop'а, так что
+ожидание исчерпанного пула не может заблокировать loop. См.
 [Транзакции](transactions.md).
 
 ## Замечания
