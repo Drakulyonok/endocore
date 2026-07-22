@@ -11,10 +11,14 @@ endocore.asgi:create_app        # a factory that builds an Application from the 
 ```
 
 `create_app()` reads the current working directory as the app root and honours
-two env vars:
+three env vars:
 
-- `ENDOCORE_DEV=0` — disable the in-process dev watcher.
+- `ENDOCORE_DEV=0` — disable the in-process dev watcher (also switches
+  `/docs` + `/openapi.json` off, since they default to "on in dev only").
 - `ENDOCORE_DEFAULT_VERSION=latest` — resolve version-less paths.
+- `ENDOCORE_OPENAPI=1` — serve `/docs` + `/openapi.json` even with
+  `ENDOCORE_DEV=0`. Off by default in production on purpose — opt in
+  explicitly if you want the schema/UI publicly reachable.
 
 ## Uvicorn (single process)
 
@@ -132,7 +136,9 @@ end showmigrations     # verify
 
 ## Production checklist
 
-- [ ] `ENDOCORE_DEV=0` (no watcher).
+- [ ] `ENDOCORE_DEV=0` (no watcher; also turns `/docs` off by default).
+- [ ] Leave `ENDOCORE_OPENAPI` unset unless you deliberately want the schema
+  public — don't set it to "1" out of habit.
 - [ ] Multiple workers behind a proxy.
 - [ ] `end migrate` on each release.
 - [ ] Secrets from env (cookie/CSRF secret, `ENDOCORE_FILE_KEY`, DB creds).

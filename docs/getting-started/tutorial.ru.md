@@ -202,13 +202,12 @@ end rollback                # откатить последнюю
 ```python
 # Tests/test_posts.py
 from Services.posts import create_post
-from Models.blog import Post
-from endocore.orm import configure, create_all, get_connection
+from Models.blog import Author, Comment, Post
+from endocore.orm import configure, create_all
 
 def setup_module():
-    configure(backend="sqlite", database=":memory:")
-    create_all(*__import__("Models.blog", fromlist=["x"]).__dict__.values()
-               if False else [Post])   # упрощённо; импортируйте свои модели
+    configure(backend="sqlite", database=":memory:")   # своя БД на каждый прогон
+    create_all(Author, Post, Comment)
 
 def test_create_post():
     post = create_post(author_name="Ada", title="Hello")
