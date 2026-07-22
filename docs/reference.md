@@ -7,7 +7,7 @@ and the ORM from `endocore.orm`.
 
 **Core**
 
-- `Application(app_dir=".", *, dev=False, default_version=None, max_body_size=…, openapi=True, openapi_title=…)`
+- `Application(app_dir=".", *, dev=False, default_version=None, max_body_size=…, openapi=None, openapi_title=…)` — `openapi=None`: serve `/docs` + `/openapi.json` only when `dev=True`
 - `Request` — `.method .path .path_params .query .headers .cookies`,
   `await .json() .body() .form() .files()`, `.stream()`, `.get_signed_cookie()`
 - `Response(content, status=200, headers=None, media_type=…, background=None)` —
@@ -35,12 +35,19 @@ and the ORM from `endocore.orm`.
 
 - `QueryParams`, `FormData`, `UploadFile`
 
+**Auth & passwords**
+
+- `login(request, pk)`, `logout(request)`, `user_id(request)`,
+  `require_user_id(request)` — DI-dependency (401 for anonymous)
+- `hash_password(pw)`, `verify_password(pw, stored)`, `needs_rehash(stored)`
+
 ## `endocore.middleware`
 
 - `logging_middleware`
 - `cors_middleware(...)`, `security_headers_middleware(...)`, `gzip_middleware(...)`,
   `proxy_headers_middleware(...)`, `rate_limit_middleware(...)`,
-  `timeout_middleware(...)`, `csrf_middleware(secret)`
+  `timeout_middleware(...)`, `csrf_middleware(secret)`,
+  `session_middleware(secret, cookie_name="session", max_age=…, secure=False)`
 
 ## `endocore.orm`
 
@@ -50,8 +57,8 @@ and the ORM from `endocore.orm`.
 
 **Connections & schema**
 
-- `configure(backend=…, alias="default", **params)`, `connect(...)`,
-  `get_connection(alias)`, `atomic(alias="default")`, `close_all()`
+- `configure(backend=…, alias="default", pool_size=…, **params)`, `connect(...)`,
+  `get_connection(alias)`, `atomic(alias="default")`, `aatomic(alias="default")`, `close_all()`
 - `create_all(*models)`, `create_table(model)`, `create_through_tables(model)`, `drop_table(model)`
 
 **Queries**

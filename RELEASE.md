@@ -23,7 +23,7 @@ gh repo create Drakulyonok/endocore --public --source . --remote origin --push
 ```bash
 git remote add origin https://github.com/Drakulyonok/endocore.git
 git push -u origin master          # or: git branch -M main && git push -u origin main
-git push --tags                    # push v0.1.0b1 ... v0.6.0b1
+git push --tags                    # push v0.1.0b1 ... v0.7.0b1
 ```
 
 ## 2. Turn on GitHub Pages (docs)
@@ -34,7 +34,8 @@ and deploys on the next push to `main`/`master`. (Or use Read the Docs — see
 
 ## 3. Publish to PyPI
 
-You already have `dist/endocore-0.6.0b1.tar.gz` and the wheel.
+`python -m build` produces `dist/endocore-0.7.0b1.tar.gz` and the wheel
+(see below — build it fresh before publishing).
 
 ### Option A — Trusted Publishing (recommended, no tokens)
 
@@ -49,7 +50,7 @@ You already have `dist/endocore-0.6.0b1.tar.gz` and the wheel.
 2. Push a version tag; the `Publish` workflow builds and uploads with no token:
 
 ```bash
-git tag v0.6.0b1        # if not already
+git tag v0.7.0b1
 git push --tags
 ```
 
@@ -76,7 +77,7 @@ Then `pip install endocore` works for everyone.
 
 ```bash
 pip install endocore
-end --version            # EndoCore 0.6.0b1
+end --version            # EndoCore 0.7.0b1
 ```
 
 ## What I (the assistant) cannot do for you

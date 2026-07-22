@@ -34,6 +34,49 @@ unrecoverable without the separate key, and tampering is detected. See
   methods.
 - Cookies default to `SameSite=Lax`; set `secure=True`, `httponly=True` as needed.
 
+## Sessions & authentication
+
+Built in, stdlib-only. Sessions travel in an HMAC-signed cookie (stateless, no
+store to deploy); passwords are hashed with **scrypt** (`hashlib.scrypt`) in a
+self-describing format so work factors can be raised later.
+
+```python
+# Middleware/__init__.py
+from endocore.middleware import session_middleware
+middlewares = [session_middleware(secret=env("SECRET_KEY"), secure=True)]
+```
+
+```python
+# Api/v1/Login/Post.py
+from endocore import Response, login, verify_password
+from Models.user import User
+
+async def handler(request):
+    body = await request.json()
+    user = await User.objects.filter(email=body["email"]).afirst()
+    # None still burns a full scrypt run: an unknown email takes as long as a
+    # wrong password, so response timing can't enumerate accounts.
+    if not verify_password(body["password"], user.password_hash if user else None):
+        return Response.json({"error": "invalid credentials"}, status=401)
+    login(request, user.pk)                  # stores the pk in the session
+    return Response.json({"ok": True})
+```
+
+```python
+# Api/v1/Me/Get.py — 401 for anonymous requests, via DI
+from endocore import Depends, Response, require_user_id
+
+async def handler(request, user_id = Depends(require_user_id)):
+    return Response.json({"user_id": user_id})
+```
+
+- `hash_password(pw)` → store the string; `verify_password(pw, stored)` is
+  constant-time; `needs_rehash(stored)` says when to re-hash after a login.
+- `login(request, pk)` / `logout(request)` / `user_id(request)` (→ pk or `None`).
+- `request.session` is a plain dict; the cookie is rewritten only when it was
+  modified, and deleted when cleared. Keep it small (~4 KB cookie limit).
+- A tampered/expired session cookie yields a fresh anonymous session, never a 500.
+
 ## Hardening middleware
 
 ```python

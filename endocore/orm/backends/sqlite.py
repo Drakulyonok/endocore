@@ -10,6 +10,7 @@ class SQLiteBackend(BaseBackend):
     quote_char = '"'
     placeholder = "?"           # sqlite3 uses qmark paramstyle
     supports_returning = False  # rely on cursor.lastrowid for portability
+    materialize_results = True  # lazy cursors + shared conn: fetch before release
 
     autoincrement_pk_sql = "INTEGER PRIMARY KEY AUTOINCREMENT"
 
@@ -38,7 +39,7 @@ class SQLiteBackend(BaseBackend):
         if internal == "DecimalField":
             return f"DECIMAL({int(field.max_digits)}, {int(field.decimal_places)})"
         if internal == "ForeignKey":
-            return "INTEGER"
+            return self.fk_column_type(field)
         return self._TYPES.get(internal, "TEXT")
 
     def auto_pk_sql(self, field) -> str:
@@ -57,4 +58,10 @@ class SQLiteBackend(BaseBackend):
         # Make them consistent so `contains` is case-sensitive and `icontains`
         # (which uses LOWER on both sides) is case-insensitive everywhere.
         conn.execute("PRAGMA case_sensitive_like = ON")
+        # Built-in LOWER() folds ASCII only; override with str.lower so
+        # iexact/icontains work for non-Latin text (the compiler lowercases
+        # LIKE parameters with str.lower too, keeping both sides aligned).
+        conn.create_function(
+            "lower", 1, lambda s: s.lower() if isinstance(s, str) else s, deterministic=True
+        )
         return conn

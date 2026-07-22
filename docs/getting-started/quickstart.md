@@ -1,6 +1,7 @@
 # Quickstart
 
-Build a running API in about a minute.
+Build a running API in about a minute. No config files and no route
+registration — you create folders and files, EndoCore serves them.
 
 ## 1. Scaffold a project
 
@@ -8,6 +9,10 @@ Build a running API in about a minute.
 end new blog
 cd blog
 ```
+
+!!! note "PowerShell"
+    In PowerShell type `endo` instead of `end` (`endo new blog`) — `end` is a
+    reserved word there. Same CLI, different name.
 
 You get a ready structure:
 
@@ -27,11 +32,19 @@ blog/
 ## 2. Run the dev server
 
 ```bash
-end dev            # http://127.0.0.1:8000
+end dev
 ```
 
-Visit `http://127.0.0.1:8000/v1/health` → `{"status": "ok"}`.
-Open `http://127.0.0.1:8000/docs` for the interactive **Swagger UI**.
+You should see something like:
+
+```text
+[INFO] EndoCore booted: loaded 1 route, 0 middleware, 0 files with errors
+[INFO] Uvicorn running on http://127.0.0.1:8000
+```
+
+Visit `http://127.0.0.1:8000/v1/health` — you'll get `{"status": "ok"}`.
+Open `http://127.0.0.1:8000/docs` for the interactive **Swagger UI**, where you
+can try every endpoint from the browser.
 
 ## 3. Add an endpoint
 
@@ -52,8 +65,8 @@ async def handler(request: Request) -> Response:
     return Response.json({"name": "Ada", "role": "admin"})
 ```
 
-The dev watcher rebuilds the route tree in-process — no restart. Hit
-`GET /v1/user/profile` and you're serving it.
+Save the file — the dev server picks it up without a restart. Open
+`http://127.0.0.1:8000/v1/user/profile` and the endpoint is live.
 
 ## 4. Dynamic segments
 

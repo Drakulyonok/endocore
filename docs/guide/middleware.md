@@ -1,7 +1,12 @@
 # Middleware
 
-Middleware wraps the request in an **onion**: each layer gets the `Request` and a
-`call_next`, and either returns early or passes control inward.
+A middleware is a function that every request passes through before your
+handler — and every response passes through after it. It's the place for things
+that apply to all endpoints at once: auth checks, CORS, rate limits, timing.
+
+The layers wrap the handler like an onion: each middleware gets the `Request`
+and a `call_next`, and either returns a response early or passes control
+inward.
 
 ```python
 from endocore import Request, Response

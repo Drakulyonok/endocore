@@ -23,7 +23,9 @@ def app(tmp_path_factory):
     write("v1/User/[id]/Get.py", "Fetch a user by id.")
     write("v1/User/Role/Post.py", "Create a role.")
     write("v2/Item/Get.py", "List items.")
-    return Application(app_dir=root)
+    # openapi=True explicitly: since the security review the default is
+    # "serve /docs and /openapi.json only when dev=True".
+    return Application(app_dir=root, openapi=True)
 
 
 def test_basic_structure(app):

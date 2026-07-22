@@ -1,5 +1,9 @@
 # Background tasks & lifecycle
 
+Two things live on this page: code that runs when the app starts and stops
+(open a DB pool, close it), and work you defer until after the response is
+sent (send an email without making the client wait).
+
 ## Startup / shutdown hooks
 
 Put lifecycle hooks in `hooks.py` at your app root. They run on the ASGI

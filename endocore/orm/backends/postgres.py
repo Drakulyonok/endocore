@@ -10,6 +10,8 @@ class PostgresBackend(BaseBackend):
     quote_char = '"'
     placeholder = "%s"          # psycopg uses pyformat (%s) for positional binds
     supports_returning = True   # INSERT ... RETURNING id
+    default_pool_size = 5       # real concurrency: transactions pin a pooled conn
+    reset_on_release = True     # never park a conn "idle in transaction"
 
     autoincrement_pk_sql = "SERIAL PRIMARY KEY"
 
@@ -38,7 +40,7 @@ class PostgresBackend(BaseBackend):
         if internal == "DecimalField":
             return f"NUMERIC({int(field.max_digits)}, {int(field.decimal_places)})"
         if internal == "ForeignKey":
-            return "INTEGER"
+            return self.fk_column_type(field)
         return self._TYPES.get(internal, "TEXT")
 
     def auto_pk_sql(self, field) -> str:

@@ -1,8 +1,11 @@
 # Migrations
 
-State-based migrations with **rollback**. Each migration is a JSON file holding
-the SQL to apply (`forward`), the SQL to undo it (`reverse`), and a snapshot of
-the resulting schema.
+When your models change, the database tables have to change with them.
+Migrations record each change as a file you can apply, inspect, and undo — so
+the schema evolves in controlled steps instead of by hand.
+
+Each migration is a JSON file holding the SQL to apply (`forward`), the SQL to
+undo it (`reverse`), and a snapshot of the resulting schema.
 
 ## Workflow
 

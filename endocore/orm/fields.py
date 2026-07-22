@@ -587,7 +587,12 @@ class ForeignKey(Field):
         return f"{self.name}_id"
 
     def to_python(self, value: Any) -> Any:
-        return None if value is None else int(value)
+        # Delegate to the target model's pk field so FKs work for any pk type
+        # (int autoincrement, UUIDField, ...), not just integers.
+        return None if value is None else self.to._meta.pk.to_python(value)
+
+    def to_db(self, value: Any, backend) -> Any:
+        return None if value is None else self.to._meta.pk.to_db(value, backend)
 
 
 class OneToOneField(ForeignKey):

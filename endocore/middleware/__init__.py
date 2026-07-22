@@ -7,6 +7,7 @@ from endocore.middleware.logging import logging_middleware
 from endocore.middleware.proxy import proxy_headers_middleware
 from endocore.middleware.ratelimit import rate_limit_middleware
 from endocore.middleware.security import security_headers_middleware
+from endocore.middleware.sessions import session_middleware
 from endocore.middleware.timeout import timeout_middleware
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "rate_limit_middleware",
     "timeout_middleware",
     "csrf_middleware",
+    "session_middleware",
 ]

@@ -18,7 +18,7 @@ identifiers are validated and quoted, and only whitelisted lookups produce SQL.
 from __future__ import annotations
 
 from endocore.orm import fields
-from endocore.orm.connection import atomic, close_all, configure, connect, get_connection
+from endocore.orm.connection import aatomic, atomic, close_all, configure, connect, get_connection
 from endocore.orm.exceptions import (
     ConfigurationError,
     DoesNotExist,
@@ -61,6 +61,7 @@ __all__ = [
     "configure",
     "connect",
     "get_connection",
+    "aatomic",
     "atomic",
     "close_all",
     "create_all",

@@ -92,6 +92,12 @@ async def main(n: int) -> None:
     endo = _make_endocore()
     fast = _make_fastapi()
 
+    # Silence EndoCore's per-request logging (after boot: get_logger resets the
+    # level to INFO on first configure). Writing 100k+ lines to the console would
+    # measure terminal I/O, not dispatch — FastAPI logs nothing here either.
+    import logging
+    logging.getLogger("endocore").setLevel(logging.WARNING)
+
     print(f"\nIn-process ASGI dispatch, {n:,} iterations (higher req/s is better)\n")
     print("Static route  GET /v1/ping")
     e1 = await _bench("EndoCore", endo, "/v1/ping", n)

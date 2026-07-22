@@ -2,6 +2,80 @@
 
 All notable changes to EndoCore are documented here.
 
+## [0.7.0b1] — 2026-07-22 — connection pooling, `aatomic()`, built-in auth
+
+**1679 tests (plus 3 PostgreSQL pool tests behind ENDOCORE_TEST_POSTGRES_DSN).**
+
+### Fixed
+- **Transaction isolation under concurrency** — a transaction now holds the
+  connection's lock for its whole block; concurrent threads (including the
+  async threadpool) can no longer interleave statements inside someone else's
+  open `atomic()`, and autocommit writes wait for the transaction to finish.
+  Ownership is tracked with a `contextvars` token, so `a*` ORM calls join the
+  transaction they were started in.
+- **Sync handlers no longer block the event loop** — plain `def handler(...)`
+  endpoints (and sync `background=` tasks) are dispatched via
+  `asyncio.to_thread`; async handlers stay on the loop.
+- **Rate limiter memory** — `rate_limit_middleware` sweeps expired client
+  windows (at most once per window) instead of growing without bound.
+- **Unicode case-insensitive lookups on SQLite** — `iexact`/`icontains`/... now
+  fold non-ASCII text (Кириллица etc.): the connection registers a
+  Unicode-aware `lower()` overriding SQLite's ASCII-only built-in.
+- **ForeignKey to non-integer pks** — FK assignment, row loading (`to_python`),
+  value binding (`to_db`) and the DDL column type now delegate to the target
+  model's pk field, so FKs to `UUIDField` pks work end-to-end.
+- `QuerySet.in_bulk` type hints no longer reference an unimported name.
+- **FK lookups/assignment by attname** — `filter(owner_id=pk)` and
+  `Model(owner_id=pk)` now resolve a ForeignKey by its `<name>_id` attname
+  (Django-style), not just by the relation name.
+- **SQLite results are fetched at execute time** — sqlite3 cursors read
+  lazily and a concurrent thread's `rollback()` on the shared connection
+  reset pending statements, so a SELECT fetched after its connection went
+  back to the pool could silently come back empty (surfaced by the shop
+  demo's idempotency race). Results are now materialized before release.
+
+### Changed
+- **`/docs` + `/openapi.json` are dev-only by default** — `Application(openapi=None)`
+  serves them only when `dev=True`; opt in for production with `openapi=True`
+  or `ENDOCORE_OPENAPI=1`.
+
+### Added
+- **`aatomic()`** — async transaction block (`async with aatomic(): ...`):
+  same semantics as `atomic()` (SAVEPOINT nesting included) with the lock
+  acquisition and commit/rollback offloaded so the event loop never blocks;
+  `with atomic():` on the loop thread now emits a `RuntimeWarning`.
+- **Connection pooling** — each alias owns a bounded pool of physical
+  connections (`configure(..., pool_size=N)`; defaults: SQLite 1, PostgreSQL 5).
+  A transaction pins one pooled connection for its whole block, so on
+  PostgreSQL up to `pool_size` transactions run concurrently; autocommit
+  statements borrow any free connection. PostgreSQL connections are rolled
+  back before returning to the pool, so none sit "idle in transaction".
+- **PostgreSQL pool race tests** — `tests/orm/test_postgres_pool.py`, gated by
+  `ENDOCORE_TEST_POSTGRES_DSN`: proves genuine transaction concurrency,
+  no-overdraft conditional spends and UNIQUE races on a real server before
+  `pool_size > 1` is trusted in production.
+- **Built-in auth** (stdlib-only):
+  - `session_middleware(secret)` — stateless cookie sessions signed with
+    HMAC-SHA256; `request.session` is a dict, the cookie is rewritten only
+    when modified and deleted when cleared; tampered/expired cookies degrade
+    to an anonymous session.
+  - `hash_password` / `verify_password` / `needs_rehash` — scrypt
+    (`hashlib.scrypt`, OWASP work factors) in a self-describing format so
+    parameters can be raised later; constant-time verification, and
+    `verify_password(pw, None)` burns a full derivation so login timing
+    cannot enumerate which accounts exist.
+  - `login(request, pk)`, `logout(request)`, `user_id(request)` and the DI
+    dependency `require_user_id` (401 for anonymous) — all importable from
+    `endocore`.
+- **`py.typed`** — the package ships inline type hints (PEP 561); type
+  checkers no longer need stub overrides.
+- **`demos/`** — three end-to-end example apps exercising the framework under
+  concurrency and real payment-style requirements (not shipped in the sdist):
+  `teamboard` (kanban with live WebSocket updates), `booking` (slot booking
+  with a race-tested no-double-booking guarantee), `shop` (idempotent
+  purchases + payment-gateway webhook, race-tested for no-overdraft spends —
+  see its README for the PostgreSQL pool run).
+
 ## [0.6.0b1] — 2026-07-03 — sixth Beta: async ORM, ws pub/sub, pydantic, migration alter/rename
 
 **1632 tests.**
@@ -22,12 +96,11 @@ All notable changes to EndoCore are documented here.
   portable table **rebuild** (data preserved, reversible); explicit column
   **rename** via `end makemigrations --rename table.old=new` (`RENAME COLUMN`).
 
-### Not included (by design)
-- **GraphQL** — deliberately excluded: it conflicts with the file-as-route idea.
-- Native async drivers (asyncpg/aiosqlite) — the threadpool offload gives
-  non-blocking access over the existing sync ORM for both SQLite and Postgres.
+### Notes
+- The async ORM uses a threadpool offload over the existing sync engine — one
+  battle-tested query path, non-blocking for both SQLite and PostgreSQL.
 
-## [0.5.0b1] — 2026-07-03 — fifth Beta: WebSockets, cache, OpenAPI, integrations, ORM/migrations maxed
+## [0.5.0b1] — 2026-06-18 — fifth Beta: WebSockets, cache, OpenAPI, integrations, ORM/migrations maxed
 
 **1600 tests.**
 
@@ -55,7 +128,7 @@ All notable changes to EndoCore are documented here.
 - **Index diffing** (CREATE/DROP INDEX in migrations), **`end showmigrations`**,
   **`end sqlmigrate <name>`**, **`end migrate <target>`**.
 
-## [0.4.0b1] — 2026-07-03 — fourth Beta: client-usable (DI, batteries, migrations)
+## [0.4.0b1] — 2026-05-30 — fourth Beta: client-usable (DI, batteries, migrations)
 
 Big round toward "client usable": convenience, security, and a lot more surface.
 **1510 tests.**
@@ -100,7 +173,7 @@ Big round toward "client usable": convenience, security, and a lot more surface.
 - Column DDL emits `DEFAULT` for constant defaults (so `ADD COLUMN NOT NULL`
   works in migrations); SQLite `check_same_thread=False` + a connection lock.
 
-## [0.3.0b1] — 2026-07-03 — third Beta: ORM completeness, encrypted files, deferrals
+## [0.3.0b1] — 2026-05-02 — third Beta: ORM completeness, encrypted files, deferrals
 
 ### Added — ORM
 - **Many more field types**: `SmallIntegerField`, `PositiveSmallIntegerField`,
@@ -133,7 +206,7 @@ Big round toward "client usable": convenience, security, and a lot more surface.
 - Optional extras: `endocore[files]` (cryptography), `endocore[watch]`.
 - Version -> 0.3.0b1. 102 tests total.
 
-## [0.2.0b1] — 2026-07-03 — second Beta: the ORM
+## [0.2.0b1] — 2026-04-17 — second Beta: the ORM
 
 A small, secure, Django-flavoured ORM for **SQLite** and **PostgreSQL**.
 
@@ -162,7 +235,7 @@ A small, secure, Django-flavoured ORM for **SQLite** and **PostgreSQL**.
 ### Changed
 - `endocore[postgres]` optional extra for the psycopg driver.
 
-## [0.1.0b1] — 2026-07-03 — first Beta
+## [0.1.0b1] — 2026-04-08 — first Beta
 
 First usable Beta. The framework boots a real app, serves it over uvicorn, and
 the CLI scaffolds and versions the tree.

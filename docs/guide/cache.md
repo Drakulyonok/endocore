@@ -1,6 +1,9 @@
 # Cache
 
-A small cache interface with **in-memory** and **Redis** backends, plus a
+A cache remembers the results of slow work — a heavy query, an API call — so
+repeat requests get an instant answer instead of doing the work again.
+
+EndoCore ships a small cache with **in-memory** and **Redis** backends, plus a
 `@cached` decorator.
 
 ## Configure & use

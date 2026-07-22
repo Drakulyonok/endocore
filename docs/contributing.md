@@ -48,9 +48,10 @@ mkdocs serve                    # preview the docs locally
 
 ## What we won't merge
 
-- Features that contradict the philosophy (e.g. a GraphQL layer, an admin panel).
 - Anything that puts values into SQL without parameter binding.
 - New required core dependencies.
+- Features that contradict the [philosophy](getting-started/philosophy.md) —
+  when in doubt, open an issue first.
 
 ## Reporting security issues
 

@@ -1,7 +1,11 @@
 # Request & Response
 
-EndoCore ships its own thin `Request`/`Response` over the raw ASGI scope — no
-Starlette.
+Every handler receives a `Request` — everything the client sent (URL, headers,
+query params, body) — and returns a `Response` — everything you send back.
+This page is the full reference for both.
+
+Both classes are EndoCore's own thin wrappers over raw ASGI, no Starlette
+underneath.
 
 ## Request
 

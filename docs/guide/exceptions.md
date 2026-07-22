@@ -1,7 +1,8 @@
 # Errors & exceptions
 
-Raise an HTTP exception anywhere in a handler or middleware to short-circuit with
-a status code. The logging layer renders it to a JSON response.
+Need to answer "404 Not Found" or "401 Unauthorized" from deep inside your
+code? Raise an exception — EndoCore catches it anywhere in a handler or
+middleware and turns it into a JSON response with the right status code.
 
 ```python
 from endocore import Request, Response, NotFound, Unauthorized

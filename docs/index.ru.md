@@ -11,6 +11,12 @@
   DI · WebSockets · кэш · OpenAPI · миграции · 1600+ тестов.</em>
 </p>
 
+<p align="center" markdown>
+[Начать](getting-started/quickstart.md){ .md-button .md-button--primary }
+[Туториал](getting-started/tutorial.md){ .md-button }
+[vs FastAPI](comparison.md){ .md-button }
+</p>
+
 ---
 
 ## Идея за десять секунд
@@ -38,9 +44,8 @@ async def handler(request: Request) -> Response:
 end dev            # http://127.0.0.1:8000
 ```
 
-**Папка — это URL**, **имя файла — это HTTP-метод**, `[id]` — **динамический
-сегмент**, а первый сегмент `vN` — **версия API**. Это вся модель роутинга — и
-это то же самое дерево, которое генерирует CLI и копирует система версий.
+Папка — это URL, имя файла — HTTP-метод, `[id]` захватывает значение, а первая
+папка `vN` — версия API. Это вся модель роутинга.
 
 ---
 
@@ -103,21 +108,23 @@ pip install endocore
 # экстры: pip install "endocore[postgres,files,redis,pydantic]"
 ```
 
-Дальше — [Установка](getting-started/installation.md) и
-[Быстрый старт](getting-started/quickstart.md), либо
-[Туториал](getting-started/tutorial.md), где мы соберём небольшой API целиком.
+Первый раз здесь? Идите по порядку:
+
+1. [Установка](getting-started/installation.md) — один `pip install`.
+2. [Быстрый старт](getting-started/quickstart.md) — рабочий API за минуту.
+3. [Туториал](getting-started/tutorial.md) — небольшой API блога целиком:
+   модели, сервисы, middleware, версии, тесты.
 
 ---
 
 ## Статус
 
-EndoCore — это **бета** (`0.6.0b1`). Публичный API стабилизируется к `1.0`.
-Поставляется с **1600+ тестами**, покрывающими роутинг, ORM (оба диалекта, тесты
-на инъекции), миграции, middleware, DI, кэш, WebSockets и другое.
+EndoCore — бета (`0.7.0b1`), стабилизируется к `1.0`. Поставляется с 1600+
+тестами, покрывающими роутинг, ORM (оба диалекта, тесты на инъекции), миграции,
+middleware, DI, кэш и WebSockets.
 
-!!! note "Философия"
-    EndoCore сознательно держит **ядро** на единственной внешней зависимости
-    (`uvicorn`). Всё, что составляет идею — резолвер, загрузчик,
-    Request/Response, middleware, CLI, ORM — написано из стандартной библиотеки.
-    Опциональные фичи (драйвер Postgres, шифрование файлов, Redis, Celery,
-    pydantic) подключаются как extras. См. [Философию](getting-started/philosophy.md).
+!!! note "Одна зависимость ядра"
+    Ядро зависит от одного внешнего пакета: `uvicorn`. Резолвер,
+    Request/Response, middleware, CLI и ORM написаны на стандартной библиотеке.
+    PostgreSQL, шифрование файлов, Redis, Celery и pydantic — опциональные
+    extras. Подробнее — в [Философии](getting-started/philosophy.md).

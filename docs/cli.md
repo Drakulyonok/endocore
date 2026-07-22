@@ -8,6 +8,11 @@ end --help
 end --version
 ```
 
+!!! warning "PowerShell: use `endo`"
+    `end` is a reserved keyword in PowerShell, so a bare `end dev` is a parser
+    error there. Use the identical alias **`endo`** (`endo dev`, `endo routes`,
+    …) — or `end.exe dev`. In bash, cmd and zsh both names work.
+
 ## Project & endpoints
 
 | Command | Does |

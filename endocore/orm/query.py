@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
-from typing import Any, Iterator
+from typing import Any, Iterable, Iterator
 
 from endocore.orm.exceptions import FieldError, MultipleObjectsReturned
 from endocore.orm.fields import ForeignKey
@@ -219,7 +219,9 @@ class QuerySet:
                 kwargs[field.id_attr_name] = value
             else:
                 kwargs[field.name] = value
-        return self.model(**kwargs)
+        instance = self.model(**kwargs)
+        instance.__dict__["_state_adding"] = False  # hydrated from a DB row
+        return instance
 
     # -- relational (join) support ---------------------------------------
 
@@ -255,7 +257,9 @@ class QuerySet:
                 kwargs[field.id_attr_name] = value
             else:
                 kwargs[field.name] = value
-        return model(**kwargs)
+        instance = model(**kwargs)
+        instance.__dict__["_state_adding"] = False  # hydrated from a DB row
+        return instance
 
     def _row_to_instance_joined(self, result_map, row) -> Any:
         from collections import defaultdict
@@ -692,6 +696,8 @@ class QuerySet:
                 last = cursor.lastrowid
                 for offset, obj in enumerate(reversed(objects)):
                     obj.pk = meta.pk.to_python(last - offset)
+        for obj in objects:
+            obj.__dict__["_state_adding"] = False
         return objects
 
     # -- write operations -------------------------------------------------
@@ -741,7 +747,9 @@ class QuerySet:
         cursor = self._connection().execute(sql, params, write=True)
         if returning:
             return meta.pk.to_python(backend.last_insert_id(cursor, meta.pk.column))
-        return meta.pk.to_python(cursor.lastrowid) if meta.pk else None
+        if meta.pk is not None and meta.pk.auto_increment:
+            return meta.pk.to_python(cursor.lastrowid)
+        return None  # client-generated pk (e.g. UUID): lastrowid is meaningless
 
     def _update_instance(self, instance, only: set[str] | None = None) -> None:
         backend = self._backend

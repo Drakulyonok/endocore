@@ -66,7 +66,21 @@ class Options:
         try:
             return self.fields_by_name[name]
         except KeyError:
+            # Django-style attname access: ``filter(user_id=5)`` for FK ``user``.
+            field = self.fields_by_attname.get(name)
+            if field is not None:
+                return field
             raise FieldError(f"{self.model.__name__} has no field {name!r}") from None
+
+    @property
+    def fields_by_attname(self) -> dict:
+        cached = self.__dict__.get("_fields_by_attname")
+        if cached is None:
+            cached = {
+                f.id_attr_name: f for f in self.fields if isinstance(f, ForeignKey)
+            }
+            self.__dict__["_fields_by_attname"] = cached
+        return cached
 
 
 class ForeignObjectDescriptor:
@@ -93,7 +107,9 @@ class ForeignObjectDescriptor:
         elif isinstance(value, self.field.to):
             setattr(instance, self.id_attr, value.pk)
         else:
-            setattr(instance, self.id_attr, int(value))
+            # Coerce a raw pk through the related model's pk field so FKs to
+            # non-integer primary keys (e.g. UUIDField) round-trip correctly.
+            setattr(instance, self.id_attr, self.field.to._meta.pk.to_python(value))
         instance.__dict__.pop(self.cache_attr, None)
 
 
@@ -251,6 +267,11 @@ class Model(metaclass=ModelBase):
                 f"{type(self).__name__} got unexpected field(s): {', '.join(kwargs)}"
             )
 
+        # True until this instance is known to exist as a DB row. Lets save()
+        # INSERT rows whose pk is client-generated (e.g. UUIDField with a
+        # default), where "pk is None" alone can't tell insert from update.
+        self.__dict__["_state_adding"] = True
+
     # -- identity ---------------------------------------------------------
 
     @property
@@ -307,7 +328,7 @@ class Model(metaclass=ModelBase):
     def save(self, update_fields: Iterable[str] | None = None) -> "Model":
         from endocore.orm.manager import get_queryset
 
-        adding = self.pk is None
+        adding = self.pk is None or self.__dict__.get("_state_adding", True)
         if adding and update_fields is not None:
             raise FieldError("update_fields cannot be used when inserting a new row")
 
@@ -318,7 +339,10 @@ class Model(metaclass=ModelBase):
 
         qs = get_queryset(type(self))
         if adding:
-            self.pk = qs._insert_instance(self)
+            returned_pk = qs._insert_instance(self)
+            if self.pk is None:  # keep a client-generated pk (e.g. UUID default)
+                self.pk = returned_pk
+            self.__dict__["_state_adding"] = False
         else:
             only = set(update_fields) if update_fields is not None else None
             qs._update_instance(self, only=only)
@@ -331,6 +355,7 @@ class Model(metaclass=ModelBase):
             raise FieldError("cannot delete an unsaved instance (pk is None)")
         get_queryset(type(self)).filter(pk=self.pk).delete()
         self.pk = None
+        self.__dict__["_state_adding"] = True
 
     def refresh_from_db(self) -> "Model":
         """Reload every field value from the database into this instance."""
@@ -343,6 +368,7 @@ class Model(metaclass=ModelBase):
                 self.__dict__.pop(f"_{field.name}_cache", None)
             else:
                 self.__dict__[field.name] = fresh.__dict__.get(field.name)
+        self.__dict__["_state_adding"] = False
         return self
 
     # -- async API (threadpool offload) -----------------------------------

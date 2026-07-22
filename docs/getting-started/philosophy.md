@@ -1,64 +1,60 @@
 # Philosophy
 
-EndoCore is built on a few firm decisions. They explain why it looks the way it
-does — and why it *doesn't* do some things other frameworks do.
+A few decisions explain everything else about EndoCore.
 
-## 1. The folder tree is the API
+## The folder tree is the API
 
-Routing, versioning and the CLI are **not three subsystems** — they are
-different operations over **one abstraction**: the `Api/` directory tree.
+Routing, versioning and the CLI are one mechanism, not three. All of them work
+on the `Api/` directory:
 
-- A **folder** is a URL segment.
-- A **file name** is an HTTP method (`Get.py`, `Post.py`, …).
-- A **`[id]` folder** is a dynamic segment.
-- The first **`vN` folder** is the API version.
+- a folder is a URL segment
+- a file name is an HTTP method (`Get.py`, `Post.py`, …)
+- a `[id]` folder is a dynamic segment
+- the first `vN` folder is the API version
 
-Because there is exactly one source of truth (the tree), code and routes can
-never drift. What you see is what you serve.
+There is one source of truth — the tree — so code and routes can't drift apart.
+What you see in the folder is what the server serves.
 
-## 2. Thin endpoints, logic in services
+## Thin endpoints, logic in services
 
-Endpoints must be thin: *parse input → call a service → return a response.*
-This isn't aesthetics — it's a functional requirement of versioning. If logic
-lives in endpoint files, every new version becomes a copy-paste of that logic.
-Services are the reusable core; endpoints are the thin, versioned skin.
+An endpoint should parse input, call a service, and return a response. Nothing
+else.
 
-## 3. Versions are folders, not metadata
+This isn't a style preference. Versioning works by copying endpoint files, so
+any business logic inside them gets duplicated with every new version. Keep the
+logic in services and a new version stays a thin skin over the same core.
 
-A version applies to the **whole endpoint with all its methods**. Its home is a
-`vN` folder, not a field inside a file. `v1` and `v2` coexist, and after `v2` is
-created, `v1` behaves **identically** to before. If a change in `v2` could touch
-`v1`, the versioning would be fake.
+## Versions are folders
 
-## 4. One core dependency
+A version is a `vN` folder, not a field in a config. `v1` and `v2` are separate
+trees, so creating `v2` physically cannot change how `v1` behaves. Old clients
+keep working — guaranteed by the layout, not by discipline.
 
-The core takes exactly one thing from outside: **`uvicorn`** — the HTTP
-transport. Everything that *is the idea* (resolver, loader, Request/Response,
-middleware, ORM, CLI) is written from the standard library. Writing your own TCP
-server or HTTP parser is a different planet and adds nothing to the idea;
-`uvicorn` is the right "from scratch" boundary.
+## One core dependency
 
-Optional capabilities (PostgreSQL, encrypted files, Redis, Celery, pydantic) are
-**opt-in extras**, never forced on the core.
+The core needs exactly one external package: `uvicorn`, the HTTP transport.
+The resolver, loader, Request/Response, middleware, ORM and CLI are all written
+on the standard library. PostgreSQL, encrypted files, Redis, Celery and
+pydantic are optional extras.
 
-## 5. Security is not a feature you add later
+Writing our own HTTP server would add nothing to the idea. `uvicorn` is where
+"from scratch" reasonably stops.
+
+## Security by default
 
 The ORM binds every value through the driver, validates and quotes every
-identifier, whitelists lookups, escapes `LIKE` wildcards, and coerces
-`LIMIT`/`OFFSET` to integers. Logs mask sensitive keys before anything is
-written. Encrypted files can't be recovered from a leaked disk without the key.
-These are defaults, not options.
+identifier, accepts only known lookups, escapes `LIKE` wildcards, and coerces
+`LIMIT`/`OFFSET` to integers. The logger masks passwords and tokens before
+anything is written. Encrypted files are useless without the key.
 
-## 6. Boot never dies from one broken file
+None of this needs to be turned on.
 
-A single handler that fails to import must not bring down the whole app. Import
-errors are collected and reported in a boot summary — the rest of the app keeps
-serving.
+## One broken file doesn't kill the app
 
-## What EndoCore deliberately does not do
+If an endpoint file fails to import, the error goes into the boot summary and
+the rest of the app starts normally. `end check` shows what's broken.
 
-- **No GraphQL.** It contradicts the file-as-route idea. Routes are files;
-  a single opaque `/graphql` endpoint isn't.
-- **No admin panel.** Out of scope.
-- **No heavy metaprogramming in endpoints.** The magic lives in the tree walk,
-  not in your handlers.
+---
+
+To see these ideas in practice, start with the [Quickstart](quickstart.md) or
+build a small app in the [Tutorial](tutorial.md).

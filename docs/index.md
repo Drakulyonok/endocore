@@ -11,6 +11,12 @@ folder and the endpoint exists. Routing, versioning and the CLI are all just
   WebSockets · cache · OpenAPI · migrations · 1600+ tests.</em>
 </p>
 
+<p align="center" markdown>
+[Get started](getting-started/quickstart.md){ .md-button .md-button--primary }
+[Tutorial](getting-started/tutorial.md){ .md-button }
+[vs FastAPI](comparison.md){ .md-button }
+</p>
+
 ---
 
 ## The idea in ten seconds
@@ -38,10 +44,9 @@ async def handler(request: Request) -> Response:
 end dev            # http://127.0.0.1:8000
 ```
 
-The **folder is the URL**, the **file name is the HTTP method**, `[id]` is a
-**dynamic segment**, and the first `vN` segment is the **API version**. That's
-the whole routing model — and it is the same tree the CLI scaffolds and the
-version system copies.
+The folder is the URL, the file name is the HTTP method, `[id]` captures a
+value, and the first `vN` folder is the API version. That's the entire routing
+model.
 
 ---
 
@@ -104,21 +109,23 @@ pip install endocore
 # extras: pip install "endocore[postgres,files,redis,pydantic]"
 ```
 
-Head to [Installation](getting-started/installation.md) and the
-[Quickstart](getting-started/quickstart.md), or read the
-[Tutorial](getting-started/tutorial.md) to build a small API end-to-end.
+New here? Follow this path:
+
+1. [Installation](getting-started/installation.md) — one `pip install`.
+2. [Quickstart](getting-started/quickstart.md) — a working API in a minute.
+3. [Tutorial](getting-started/tutorial.md) — a small blog API end-to-end:
+   models, services, middleware, versions, tests.
 
 ---
 
 ## Status
 
-EndoCore is a **beta** (`0.6.0b1`). The public API is stabilising toward `1.0`.
-It ships with **1600+ tests** covering routing, the ORM (both dialects,
-injection tests), migrations, middleware, DI, cache, WebSockets, and more.
+EndoCore is in beta (`0.7.0b1`), stabilising toward `1.0`. It ships with 1600+
+tests covering routing, the ORM (both dialects, injection tests), migrations,
+middleware, DI, cache and WebSockets.
 
-!!! note "Philosophy"
-    EndoCore deliberately keeps the **core** to a single external dependency
-    (`uvicorn`). Everything that makes up the idea — resolver, loader,
-    Request/Response, middleware, CLI, ORM — is written from the standard
-    library. Optional features (Postgres driver, encrypted files, Redis, Celery,
-    pydantic) are opt-in extras. See [Philosophy](getting-started/philosophy.md).
+!!! note "One core dependency"
+    The core depends on a single external package: `uvicorn`. The resolver,
+    Request/Response, middleware, CLI and ORM are standard library. PostgreSQL,
+    encrypted files, Redis, Celery and pydantic are optional extras. More in
+    [Philosophy](getting-started/philosophy.md).

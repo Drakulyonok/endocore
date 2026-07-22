@@ -36,6 +36,14 @@ class BaseBackend:
     placeholder: str = "%s"       # positional bind token for the driver
     supports_returning: bool = False
     autoincrement_pk_sql: str = "INTEGER PRIMARY KEY"
+    #: physical connections per alias unless ``configure(pool_size=...)`` says otherwise
+    default_pool_size: int = 1
+    #: rollback a connection's implicit transaction before returning it to the
+    #: pool (keeps server-side connections out of "idle in transaction")
+    reset_on_release: bool = False
+    #: fetch result sets at execute time. Required when the driver's cursors
+    #: read lazily and a rollback resets pending statements (sqlite3).
+    materialize_results: bool = False
 
     # -- identifiers (injection boundary) --------------------------------
 
@@ -81,6 +89,14 @@ class BaseBackend:
     def column_type(self, field) -> str:
         """SQL column type for a field (without PK/NULL clauses)."""
         raise NotImplementedError
+
+    def fk_column_type(self, field) -> str:
+        """Column type for a ForeignKey: mirrors the target model's pk type so
+        FKs to non-integer pks (e.g. UUIDField) get a matching column."""
+        target_pk = field.to._meta.pk
+        if target_pk is None or target_pk.auto_increment:
+            return "BIGINT" if getattr(target_pk, "internal_type", "") == "BigAutoField" else "INTEGER"
+        return self.column_type(target_pk)
 
     def auto_pk_sql(self, field) -> str:
         """Full column definition for an auto-increment primary key."""

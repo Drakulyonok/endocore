@@ -14,6 +14,20 @@ pip install endocore
 That gives you the full framework, the CLI (`end`), and the ORM for **SQLite**
 (SQLite support is built on the standard library — nothing extra to install).
 
+??? tip "New to Python? Use a virtual environment"
+    A virtual environment keeps each project's packages separate, so nothing
+    breaks system-wide. Create and activate one first:
+
+    ```bash
+    python -m venv .venv
+    # Windows:
+    .venv\Scripts\activate
+    # Linux / macOS:
+    source .venv/bin/activate
+
+    pip install endocore
+    ```
+
 ## Optional extras
 
 EndoCore keeps its core tiny; opt into what you need:
@@ -36,7 +50,7 @@ pip install "endocore[postgres,files,redis,celery,pydantic,watch]"
 ## Verify the install
 
 ```bash
-end --version         # EndoCore 0.6.0b1
+end --version         # EndoCore 0.7.0b1
 end doctor            # environment, dependencies, project checks
 ```
 
@@ -53,9 +67,18 @@ pip install pytest
 pytest -q             # 1600+ tests
 ```
 
-## Windows note
+## Windows notes
 
-On some Windows setups a bare `python` shim is broken — use the launcher:
+**PowerShell:** `end` is a reserved keyword there, so `end dev` won't parse.
+Use the identical alias `endo`:
+
+```powershell
+endo --version
+endo dev
+```
+
+**Broken `python` shim:** on some setups a bare `python` doesn't work — use
+the launcher:
 
 ```bash
 py -3 -m pip install endocore

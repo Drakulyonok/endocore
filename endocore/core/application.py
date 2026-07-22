@@ -41,14 +41,15 @@ class Application:
         dev: bool = False,
         default_version: str | None = None,
         max_body_size: int | None = 16 * 1024 * 1024,
-        openapi: bool = True,
+        openapi: bool | None = None,
         openapi_title: str = "EndoCore API",
     ) -> None:
         self.app_dir = Path(app_dir).resolve()
         self.api_dir = self.app_dir / "Api"
         self.dev = dev
-        #: serve built-in /openapi.json and /docs
-        self.openapi = openapi
+        #: serve built-in /openapi.json and /docs. Default: only in dev — the
+        #: full API schema should not be public in production unless opted in.
+        self.openapi = dev if openapi is None else openapi
         self.openapi_title = openapi_title
         #: ``"latest"`` resolves a version-less path to the newest version (logged);
         #: ``None`` keeps the strict 404 behaviour.
@@ -240,10 +241,18 @@ class Application:
         request.path_params = resolution.match.params
         entry = resolution.match.entry
         try:
+            # Sync handlers go to a worker thread so they can't stall the loop.
             if is_trivial_request_handler(entry.handler):
-                result = entry.handler(request)          # fast path: handler(request)
+                if entry.is_async:
+                    result = entry.handler(request)      # fast path: handler(request)
+                else:
+                    result = await asyncio.to_thread(entry.handler, request)
             else:
-                result = entry.handler(**await solve(entry.handler, request, self))
+                kwargs = await solve(entry.handler, request, self)
+                if entry.is_async:
+                    result = entry.handler(**kwargs)
+                else:
+                    result = await asyncio.to_thread(lambda: entry.handler(**kwargs))
             if inspect.isawaitable(result):
                 result = await result
         except HTTPError as exc:
@@ -319,12 +328,22 @@ class Application:
 
         background = getattr(response, "background", None)
         if background is not None:
-            await self._run_hook(background)
+            await self._run_background(background)
 
     async def _run_hook(self, hook) -> None:
         result = hook()
         if asyncio.iscoroutine(result):
             await result
+
+    async def _run_background(self, task) -> None:
+        """Run a post-response background task; sync callables go to a worker
+        thread so they can't block the loop between requests."""
+        if inspect.iscoroutinefunction(task):
+            await task()
+        else:
+            result = await asyncio.to_thread(task)
+            if asyncio.iscoroutine(result):
+                await result
 
     async def _lifespan(self, receive, send) -> None:
         while True:

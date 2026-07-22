@@ -1,7 +1,10 @@
 # Dependency Injection
 
-Handlers stay plain functions; declare extra parameters and EndoCore resolves
-them. It's FastAPI-flavoured: `Depends(...)` plus app-level providers.
+Dependency injection (DI) is how a handler gets ready-made objects — a database
+pool, settings, the current user — without creating them in every file. You add
+a parameter to the handler, EndoCore fills it in.
+
+It works like FastAPI's: `Depends(...)` plus app-level providers.
 
 ## `Depends`
 

@@ -1,7 +1,10 @@
 # WebSockets
 
-WebSockets are file-based too: a file named **`Socket.py`** (or `Ws.py`) in the
-Api tree is a websocket endpoint.
+A WebSocket keeps a connection open so the server can push messages to the
+client at any moment — chats, live dashboards, notifications.
+
+In EndoCore they are file-based like everything else: a file named
+**`Socket.py`** (or `Ws.py`) in the Api tree is a websocket endpoint.
 
 ```python
 # Api/v1/Chat/Socket.py   ->  ws /v1/chat

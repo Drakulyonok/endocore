@@ -1,6 +1,7 @@
 # Быстрый старт
 
-Рабочий API примерно за минуту.
+Рабочий API примерно за минуту. Без конфигов и регистрации маршрутов — вы
+создаёте папки и файлы, EndoCore их отдаёт.
 
 ## 1. Сгенерируйте проект
 
@@ -8,6 +9,10 @@
 end new blog
 cd blog
 ```
+
+!!! note "PowerShell"
+    В PowerShell пишите `endo` вместо `end` (`endo new blog`) — `end` там
+    зарезервированное слово. Тот же CLI, другое имя.
 
 Готовая структура:
 
@@ -27,11 +32,19 @@ blog/
 ## 2. Запустите dev-сервер
 
 ```bash
-end dev            # http://127.0.0.1:8000
+end dev
 ```
 
-Откройте `http://127.0.0.1:8000/v1/health` → `{"status": "ok"}`.
-А `http://127.0.0.1:8000/docs` — интерактивный **Swagger UI**.
+В консоли появится примерно такое:
+
+```text
+[INFO] EndoCore booted: loaded 1 route, 0 middleware, 0 files with errors
+[INFO] Uvicorn running on http://127.0.0.1:8000
+```
+
+Откройте `http://127.0.0.1:8000/v1/health` — получите `{"status": "ok"}`.
+А на `http://127.0.0.1:8000/docs` — интерактивный **Swagger UI**, где каждый
+endpoint можно подёргать прямо из браузера.
 
 ## 3. Добавьте endpoint
 
@@ -52,7 +65,8 @@ async def handler(request: Request) -> Response:
     return Response.json({"name": "Ada", "role": "admin"})
 ```
 
-Dev-watcher пересобирает дерево маршрутов в процессе — без рестарта.
+Сохраните файл — dev-сервер подхватит его без рестарта. Откройте
+`http://127.0.0.1:8000/v1/user/profile` — endpoint уже работает.
 
 ## 4. Динамические сегменты
 

@@ -1,6 +1,8 @@
 # Configuration
 
-A typed, environment-backed `Settings` object plus small helpers.
+Ports, database URLs, secrets — settings usually live in environment variables.
+`Settings` reads them for you: declare fields with types and defaults, get
+parsed values back.
 
 ## Settings
 
@@ -66,7 +68,7 @@ env("DEBUG", cast=lambda v: v.lower() in {"1", "true", "yes"})
 | `dev` | `False` | enable the in-process reload watcher |
 | `default_version` | `None` | `"latest"` resolves version-less paths |
 | `max_body_size` | 16 MB | reject larger request bodies (413) |
-| `openapi` | `True` | serve `/openapi.json` and `/docs` |
+| `openapi` | `None` | serve `/openapi.json` and `/docs`; `None` = only when `dev=True` (opt in for production with `openapi=True` / `ENDOCORE_OPENAPI=1`) |
 | `openapi_title` | `"EndoCore API"` | title in the schema |
 
 `end dev` exposes the common ones as flags (`--default-version`, `--no-reload`).

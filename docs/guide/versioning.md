@@ -1,6 +1,9 @@
 # Versioning
 
-Versioning is not a subsystem — it's a **special case of routing**. The first
+Versioning lets you change what an endpoint returns without breaking apps that
+already use it: old clients keep calling `/v1`, new ones get `/v2`.
+
+In EndoCore this is not a subsystem — it's a special case of routing. The first
 path segment matching `^v\d+$` is the version, and it's just a folder.
 
 ## The model

@@ -7,9 +7,10 @@ and **PostgreSQL**.
 
 !!! info "Why a threadpool instead of native async drivers"
     The threadpool offload gives non-blocking access over the exact same query
-    engine, for both dialects, with zero duplicated code paths. The connection
-    is guarded by a lock and (for SQLite) opened with `check_same_thread=False`,
-    so cross-thread use is safe.
+    engine, for both dialects, with zero duplicated code paths. Each alias
+    owns a small connection pool (`configure(..., pool_size=N)`; SQLite 1,
+    PostgreSQL 5) and SQLite connections are opened with
+    `check_same_thread=False`, so cross-thread use is safe.
 
 ## Manager & QuerySet
 
@@ -60,6 +61,12 @@ async def handler(request: Request) -> Response:      # Api/v1/Post/Get.py
     posts = await Post.objects.order_by("-id").alist()
     return Response.json({"posts": [p.title for p in posts]})
 ```
+
+## Transactions
+
+Use `async with aatomic():` — `a*` calls inside the block join the transaction
+(ownership is a `contextvars` token that `asyncio.to_thread` propagates), and
+the lock is acquired off-loop. See [Transactions](transactions.md).
 
 ## Notes
 

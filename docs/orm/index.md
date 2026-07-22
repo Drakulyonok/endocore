@@ -1,7 +1,10 @@
 # The ORM
 
-A small, secure, Django-flavoured ORM for **SQLite** and **PostgreSQL** — sync
-and async, with relations, migrations, and encrypted files.
+An ORM lets you work with database tables as Python classes: you define a
+model, call methods on it, and get rows back as objects — no hand-written SQL.
+
+EndoCore's ORM is small, secure and Django-flavoured, works with **SQLite** and
+**PostgreSQL**, sync and async, with relations, migrations and encrypted files.
 
 ## Security first
 
@@ -29,7 +32,7 @@ class User(Model):
     age    = fields.IntegerField(default=0)
     active = fields.BooleanField(default=True)
 
-configure(backend="sqlite", database="app.db")     # or backend="postgres", host=..., dbname=...
+configure(backend="sqlite", database="app.db")     # or backend="postgres", host=..., dbname=..., pool_size=10
 create_all(User)
 
 # create

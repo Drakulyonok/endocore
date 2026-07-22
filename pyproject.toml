@@ -4,13 +4,27 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "endocore"
-version = "0.6.0b1"
+version = "0.7.0b1"
 description = "File-based ASGI backend framework (folder tree = API) with an async-capable secure ORM, DI, WebSockets + pub/sub, cache, OpenAPI, migrations, and service integrations."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Drakulyonok" }]
-keywords = ["asgi", "framework", "file-based-routing", "web"]
+keywords = ["asgi", "framework", "file-based-routing", "web", "orm", "websockets", "asyncio"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: AsyncIO",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Typing :: Typed",
+]
 
 # The whole idea (tree magic, resolver, loader, Request/Response, CLI) is written
 # from stdlib. The only thing taken from outside is the HTTP transport.
@@ -31,10 +45,24 @@ pydantic = ["pydantic>=2"]
 dev = ["watchfiles>=0.21", "pytest>=8", "psycopg[binary]>=3.1", "cryptography>=41"]
 
 [project.scripts]
+# `end` is a reserved keyword in PowerShell (begin/process/end blocks), so a
+# bare `end dev` is a parser error there. `endo` is the alias that works in
+# every shell; `end` stays for bash/cmd/zsh users.
 end = "endocore.cli.main:main"
+endo = "endocore.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/Drakulyonok/endocore"
+Documentation = "https://endocore.readthedocs.io"
+Repository = "https://github.com/Drakulyonok/endocore"
+Changelog = "https://github.com/Drakulyonok/endocore/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Drakulyonok/endocore/issues"
 
 [tool.setuptools.packages.find]
 include = ["endocore*"]
+
+[tool.setuptools.package-data]
+endocore = ["py.typed"]
 
 [tool.pytest.ini_options]
 # The framework's own test suite. The example app's tests are run separately

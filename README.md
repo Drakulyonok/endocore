@@ -3,15 +3,15 @@
 <p>
   <a href="https://pypi.org/project/endocore/"><img alt="PyPI" src="https://img.shields.io/pypi/v/endocore.svg"></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.11%2B-blue.svg">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-1632%20passing-brightgreen.svg">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-1679%20passing-brightgreen.svg">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green.svg">
 </p>
 
 📖 **Documentation:** https://endocore.readthedocs.io (EN / RU) · see [`HOSTING.md`](HOSTING.md) to deploy it free.
 
-**Status: Beta (0.6.0b1) — client-usable.** · Python ≥ 3.11 · core dependency (`uvicorn`) · optional `psycopg`, `cryptography`, `redis`, `celery`, `pydantic` · **1632 tests**
+**Status: Beta (0.7.0b1) — client-usable.** · Python ≥ 3.11 · core dependency (`uvicorn`) · optional `psycopg`, `cryptography`, `redis`, `celery`, `pydantic` · **1679 tests**
 
-Async-capable ORM · WebSockets + pub/sub · cache · OpenAPI/Swagger · pydantic bodies · Redis/Celery/Email integrations · migrations with rollback, alter & rename.
+Async-capable ORM (connection pooling, `aatomic()`) · sessions & scrypt auth · WebSockets + pub/sub · cache · OpenAPI/Swagger · pydantic bodies · Redis/Celery/Email integrations · migrations with rollback, alter & rename.
 
 **File-based ASGI backend framework — the folder tree *is* the API — with a small, secure ORM.**
 
@@ -348,3 +348,15 @@ end dev                 # http://127.0.0.1:8000
 ```
 
 Run the framework's own tests with `pytest`; run an app's tests with `end test`.
+
+## Demos
+
+Three end-to-end apps under [`demos/`](demos/) exercise the framework the way a
+real backend would — including the concurrency edge cases:
+
+- **[teamboard](demos/teamboard/)** — kanban boards with live WebSocket updates.
+- **[booking](demos/booking/)** — slot booking; race-tested for no double-booking.
+- **[shop](demos/shop/)** — idempotent purchases + payment-gateway webhook,
+  race-tested for no-overdraft spends (SQLite by default, PostgreSQL pool on request).
+
+Each has its own `README.md`, `end dev`, and `pytest Tests`.
