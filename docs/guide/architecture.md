@@ -70,7 +70,7 @@ scope/receive → │ logging → [ your middleware... ] → dispatch → handle
 `websocket` scopes are handled by `_handle_websocket`; `lifespan` runs
 startup/shutdown hooks and the dev watcher.
 
-## The resolver (the heart)
+## The resolver (the heart) {#the-resolver-the-heart}
 
 Given `POST /v2/user/42/role`, the resolver:
 
