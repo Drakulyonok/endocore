@@ -29,8 +29,7 @@ git push --tags                    # push v0.1.0b1 ... v0.7.0b1
 ## 2. Turn on GitHub Pages (docs)
 
 Repo **Settings → Pages → Source: GitHub Actions**. The `Docs` workflow builds
-and deploys on the next push to `main`/`master`. (Or use Read the Docs — see
-`HOSTING.md`.)
+and deploys on the next push to `main`/`master`.
 
 ## 3. Publish to PyPI
 

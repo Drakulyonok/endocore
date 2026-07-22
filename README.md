@@ -7,7 +7,7 @@
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green.svg">
 </p>
 
-📖 **Documentation:** https://endocore.readthedocs.io (EN / RU) · see [`HOSTING.md`](HOSTING.md) to deploy it free.
+📖 **Documentation:** https://drakulyonok.github.io/endocore/ (EN / RU)
 
 **Status: Beta (0.7.0b1) — client-usable.** · Python ≥ 3.11 · core dependency (`uvicorn`) · optional `psycopg`, `cryptography`, `redis`, `celery`, `pydantic` · **1679 tests**
 
