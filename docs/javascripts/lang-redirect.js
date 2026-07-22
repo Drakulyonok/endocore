@@ -38,6 +38,13 @@
     stored || ((navigator.language || "en").slice(0, 2).toLowerCase() === "ru" ? "ru" : "en");
   var here = document.documentElement.lang || "en";
 
+  // Persist the very first computed preference (even the browser-language
+  // guess) immediately, not just on click. Otherwise, with nothing ever
+  // stored, this recomputes from navigator.language on *every* page load —
+  // and since that never changes, any hiccup reading back a just-written
+  // click preference silently falls back to it and looks "stuck".
+  if (!stored) remember(preferred);
+
   if (preferred !== here) {
     var target = null;
     switcherLinks().forEach(function (link) {
