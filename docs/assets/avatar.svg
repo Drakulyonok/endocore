@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Dark squircle background, consistent with the site's dark-mode palette -->
+  <rect x="0" y="0" width="512" height="512" rx="120" fill="#0d1117"/>
+
+  <!-- Folder-tree emblem: same geometry as docs/assets/favicon.svg, recolored
+       with the mkdocs theme's teal primary + deep-orange accent and scaled
+       up for avatar use (GitHub org, Discord server icon, PyPI). -->
+  <g transform="translate(100,107) scale(13)">
+    <g fill="none" stroke="#009485" stroke-width="2" stroke-linecap="round">
+      <path d="M6 4v13a2 2 0 0 0 2 2h3"/>
+      <path d="M6 11h5"/>
+    </g>
+    <rect x="3" y="1.5" width="6" height="5" rx="1.2" fill="#009485"/>
+    <rect x="13" y="8.5" width="8" height="5" rx="1.2" fill="#009485"/>
+    <rect x="13" y="16.5" width="8" height="5" rx="1.2" fill="#FF6E40"/>
+  </g>
+</svg>
