@@ -97,7 +97,7 @@ sitting right next to `Api/v1/User/Get.py` causes no conflict whatsoever.
 `WEBSOCKET` pseudo-method instead of a normal HTTP verb. See
 [WebSockets](websockets.md).
 
-### 4. A folder named `[name]` is a dynamic segment
+### 4. A folder named `[name]` is a dynamic segment {#dynamic-segments}
 
 The folder name must match `^\[(?P<name>[^\[\]]+)\]$` — square brackets around
 one or more characters that aren't themselves brackets. Whatever text sits
