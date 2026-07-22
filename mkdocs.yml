@@ -1,7 +1,7 @@
 site_name: EndoCore
 site_description: File-based ASGI backend framework — the folder tree is the API.
 site_author: Drakulyonok
-site_url: https://drakulyonok.github.io/endocore/
+site_url: https://endocore.readthedocs.io/
 repo_url: https://github.com/Drakulyonok/endocore
 repo_name: Drakulyonok/endocore
 copyright: Copyright &copy; 2026 Drakulyonok — MIT License

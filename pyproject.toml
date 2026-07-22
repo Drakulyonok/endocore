@@ -53,7 +53,7 @@ endo = "endocore.cli.main:main"
 
 [project.urls]
 Homepage = "https://github.com/Drakulyonok/endocore"
-Documentation = "https://drakulyonok.github.io/endocore/"
+Documentation = "https://endocore.readthedocs.io"
 Repository = "https://github.com/Drakulyonok/endocore"
 Changelog = "https://github.com/Drakulyonok/endocore/blob/main/CHANGELOG.md"
 Issues = "https://github.com/Drakulyonok/endocore/issues"

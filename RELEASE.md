@@ -1,9 +1,10 @@
 # Releasing EndoCore
 
-Everything is prepared: the package builds and passes `twine check`, and the
-GitHub Actions workflows publish the docs (Pages) and the package (PyPI, via
-Trusted Publishing). The steps below are the parts that need **your** accounts —
-they can't be done without your credentials.
+**0.7.0b1 is live:** repo pushed, tags pushed, docs deployed on both
+[Read the Docs](https://endocore.readthedocs.io) (primary) and
+[GitHub Pages](https://drakulyonok.github.io/endocore/) (mirror), package
+published to [PyPI](https://pypi.org/project/endocore/). The steps below are
+kept as a checklist for the *next* release.
 
 ## 1. Create the public GitHub repo & push
 
@@ -26,10 +27,14 @@ git push -u origin master          # or: git branch -M main && git push -u origi
 git push --tags                    # push v0.1.0b1 ... v0.7.0b1
 ```
 
-## 2. Turn on GitHub Pages (docs)
+## 2. Docs hosting
 
-Repo **Settings → Pages → Source: GitHub Actions**. The `Docs` workflow builds
-and deploys on the next push to `main`/`master`.
+- **GitHub Pages**: repo **Settings → Pages → Source: GitHub Actions**. The
+  `Docs` workflow builds and deploys on every push to `main`/`master` that
+  touches `docs/**`, `mkdocs.yml`, or `CHANGELOG.md`.
+- **Read the Docs**: sign in at https://readthedocs.org with GitHub, import
+  the `endocore` repo — it reads `.readthedocs.yaml` (MkDocs config +
+  `docs/requirements.txt`) automatically and rebuilds on push.
 
 ## 3. Publish to PyPI
 
