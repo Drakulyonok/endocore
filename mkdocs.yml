@@ -120,6 +120,8 @@ extra:
       link: https://github.com/Drakulyonok/endocore
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/endocore/
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/jwvGj2M9EX
 
 nav:
   - Home: index.md

@@ -15,6 +15,7 @@
 [Начать](getting-started/quickstart.md){ .md-button .md-button--primary }
 [Туториал](getting-started/tutorial.md){ .md-button }
 [vs FastAPI](comparison.md){ .md-button }
+[Discord](https://discord.gg/jwvGj2M9EX){ .md-button }
 </p>
 
 ---

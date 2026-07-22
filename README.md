@@ -5,6 +5,7 @@
   <img alt="Python" src="https://img.shields.io/badge/python-3.11%2B-blue.svg">
   <img alt="Tests" src="https://img.shields.io/badge/tests-1679%20passing-brightgreen.svg">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green.svg">
+  <a href="https://discord.gg/jwvGj2M9EX"><img alt="Discord" src="https://img.shields.io/badge/chat-discord-5865F2?logo=discord&logoColor=white"></a>
 </p>
 
 ### Your folder tree *is* your API. No routers. No decorators. No drift.
@@ -35,6 +36,7 @@ are the whole contract.**
 
 📖 **Full documentation:** https://endocore.readthedocs.io (EN / RU) — every
 guide below goes into far more depth than this README.
+💬 **Community:** https://discord.gg/jwvGj2M9EX — questions, showcase, help.
 
 ---
 

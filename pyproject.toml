@@ -57,6 +57,7 @@ Documentation = "https://endocore.readthedocs.io"
 Repository = "https://github.com/Drakulyonok/endocore"
 Changelog = "https://github.com/Drakulyonok/endocore/blob/main/CHANGELOG.md"
 Issues = "https://github.com/Drakulyonok/endocore/issues"
+Chat = "https://discord.gg/jwvGj2M9EX"
 
 [tool.setuptools.packages.find]
 include = ["endocore*"]

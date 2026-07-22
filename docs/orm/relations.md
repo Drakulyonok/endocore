@@ -84,13 +84,36 @@ for book in Book.objects.select_related("author"):
 Book.objects.select_related("author__country")   # multi-level
 ```
 
-**`prefetch_related`** — for M2M and reverse relations — does **one extra
-batched query** and caches the results:
+**`prefetch_related`** batch-loads a relation for a whole page of results
+instead of one query per row — but check which relation kinds it actually
+supports before reaching for it, since the two supported kinds cost
+different numbers of queries:
 
 ```python
 for post in Post.objects.prefetch_related("tags"):
     post.tags.all()         # served from cache, no per-row query
 ```
+
+- **A `ManyToManyField` name** (like `"tags"` above) — **two** extra queries
+  total: one against the through table (grouping target ids by source id),
+  then one against the target model (`pk__in=[...]`) to fetch the actual
+  rows. Still a huge win over N+1, just not literally "one" query.
+- **A forward `ForeignKey` field's own name** (not its `related_name`) —
+  **one** extra query (`pk__in=[...]` on the target model). Equivalent to
+  `select_related` for that same field, except it stays a separate SELECT
+  instead of a JOIN — usually you'd reach for `select_related` on a forward
+  FK instead, but `prefetch_related` works too if you'd rather avoid the
+  JOIN's duplicated base-table columns.
+
+**Reverse relations (`related_name`, `<model>_set`) are *not* supported by
+`prefetch_related`** — `Author.objects.prefetch_related("books")` raises
+`FieldError: 'books' is not a relation on Author`, because the resolver
+only recognizes M2M field names and forward FK field names, not reverse
+accessors. There is currently no batched way to avoid N+1 on the reverse
+side of a `ForeignKey` — `author.books.all()` always issues a fresh query
+per author. If that's a real bottleneck, `annotate(n=Count("books"))` at
+least avoids per-row *counting* queries (see [Queries](queries.md)), even
+though it doesn't fetch the related rows themselves.
 
 ## Referencing models by name
 

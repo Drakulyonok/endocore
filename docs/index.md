@@ -15,6 +15,7 @@ folder and the endpoint exists. Routing, versioning and the CLI are all just
 [Get started](getting-started/quickstart.md){ .md-button .md-button--primary }
 [Tutorial](getting-started/tutorial.md){ .md-button }
 [vs FastAPI](comparison.md){ .md-button }
+[Discord](https://discord.gg/jwvGj2M9EX){ .md-button }
 </p>
 
 ---
