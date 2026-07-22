@@ -145,6 +145,14 @@ CATEGORIES = [
         ],
     },
     {
+        "name": "🇷🇺 RU-СООБЩЕСТВО",
+        "channels": [
+            {"name": "общий", "kind": TEXT, "topic": "Общение на русском."},
+            {"name": "помощь", "kind": TEXT, "topic": "Вопросы и помощь на русском."},
+            {"name": "обсуждение", "kind": TEXT, "topic": "Обсуждение фреймворка на русском."},
+        ],
+    },
+    {
         "name": "🔊 VOICE",
         "channels": [
             {"name": "General Voice", "kind": VOICE},

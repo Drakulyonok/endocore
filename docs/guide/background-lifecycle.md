@@ -42,8 +42,21 @@ async def handler(request):
     return Response.json({"id": order.id}, background=lambda: send_receipt(order.id))
 ```
 
-The background callable runs once the response bytes are flushed, so the client
-isn't kept waiting.
+The background callable runs once the response bytes are flushed, so the
+client isn't kept waiting. Whether it can block the event loop depends on
+its exact shape, checked via `inspect.iscoroutinefunction`:
+
+- Pass an `async def` function **directly** (no wrapper) and it's awaited
+  straight on the event loop.
+- Anything else — including the `lambda: send_receipt(order.id)` idiom
+  above, which is itself a perfectly ordinary sync callable that merely
+  *returns* a coroutine when called — is classified as sync and dispatched
+  to a worker thread. In this specific idiom that's a harmless no-op thread
+  hop (constructing the coroutine object is nearly free; the coroutine
+  itself is then awaited back on the loop as normal), but it does mean a
+  **genuinely blocking** sync callable passed as `background=` (a `def`
+  that does real blocking I/O, not just a lambda wrapper) correctly runs off
+  the loop too, exactly like a sync handler body does.
 
 !!! note "Heavy or reliable work"
     Background tasks are best-effort and in-process. For work that must survive

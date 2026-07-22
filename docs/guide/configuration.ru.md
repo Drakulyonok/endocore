@@ -25,8 +25,8 @@ settings = AppSettings()   # читает DEBUG, DB_URL, PORT, ALLOWED_HOSTS, DA
 - Поддерживаемые приведения: `bool` (`1/true/yes/on`), `int`, `float`, `Path`,
   `list`/`tuple`/`set` (через запятую), `str`.
 - Переопределение при создании: `AppSettings(port=9000)`.
-- Поля, похожие на секреты (`password`, `token`, `secret`, `key`, …),
-  **маскируются** в `repr`, так что настройки не утекают в логи.
+- Поля, в имени которых есть `secret`, `password`, `passwd`, `token`, `key`
+  или `dsn`, **маскируются** в `repr`, так что настройки не утекают в логи.
 
 Добавьте префикс, если нужны переменные с пространством имён:
 

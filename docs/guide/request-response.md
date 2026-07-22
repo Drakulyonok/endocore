@@ -61,6 +61,24 @@ async for chunk in request.stream():     # don't mix with body()/json()
 The app enforces a body-size limit (`max_body_size`, default 16 MB) — oversize
 bodies raise `PayloadTooLarge` (413).
 
+!!! warning "`request.stream()` rarely streams from the network in practice"
+    The always-on logging middleware (outermost layer on every request, not
+    something you can remove per-route) calls `request.json()` **before**
+    your handler runs at all — for *every* request, regardless of method or
+    content type — purely so it can log a masked payload even if the handler
+    later raises. That call fully drains the body into memory first (bounded
+    by `max_body_size`), and only *then* attempts to parse it as JSON,
+    discarding the result silently if it isn't. By the time your handler's
+    `request.stream()` runs, the body is already buffered — `stream()` just
+    replays those bytes as a single chunk (see its docstring: "if the body
+    was already buffered, yields it once"). `request.stream()` is real and
+    correctly implemented for the case where nothing upstream has touched
+    the body yet (e.g. calling `Request` directly outside the full
+    middleware pipeline, as the framework's own tests do), but inside a
+    normal running app, expect the full request body to already be resident
+    in memory (up to `max_body_size`) before any handler-level code —
+    streaming or not — gets to see it.
+
 ## Response
 
 ```python

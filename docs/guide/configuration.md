@@ -25,8 +25,9 @@ settings = AppSettings()   # reads DEBUG, DB_URL, PORT, ALLOWED_HOSTS, DATA_DIR 
 - Supported casts: `bool` (`1/true/yes/on`), `int`, `float`, `Path`,
   `list`/`tuple`/`set` (comma-separated), `str`.
 - Override at construction: `AppSettings(port=9000)`.
-- Secret-looking fields (`password`, `token`, `secret`, `key`, …) are **masked**
-  in `repr`, so settings never leak into logs.
+- Secret-looking fields (name contains `secret`, `password`, `passwd`,
+  `token`, `key`, or `dsn`) are **masked** in `repr`, so settings never leak
+  into logs.
 
 Add a prefix if you want namespaced vars:
 
