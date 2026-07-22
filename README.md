@@ -18,8 +18,9 @@ Api/v2/User/[id]/Get.py    ->  GET  /v2/user/42         (v1 keeps working, untou
 
 Drop a file in the right folder. The endpoint exists — routed, versioned, and
 showing up in `end routes` and `/docs` — with zero registration code. Delete
-the file, the endpoint is gone. There is no router to forget to update,
-because there is no router.
+the file, the endpoint is gone. Routes are discovered directly from the
+project structure, so there's no separate router table that can drift from
+what the code actually does.
 
 ```python
 # Api/v1/User/Role/Post.py  ->  POST /v1/user/role
@@ -48,12 +49,22 @@ to?" becomes an archaeology exercise. Decorator-based routers make this worse
 as they scale — the routes live in your head, scattered across files that
 import each other in whatever order someone wrote them.
 
-EndoCore makes the drift **structurally impossible**. The `Api/` directory
-*is* the route table. `end routes` doesn't introspect decorators — it just
-prints the tree, because the tree already is the answer. A new API version
-(`v2`) is `shutil.copytree` with a filter, so `v1` is physically incapable of
-changing when `v2` ships — no shared router state, no `if version == 2` branches
-rotting in a handler.
+EndoCore eliminates that entire class of drift. The `Api/` directory *is* the
+route table. `end routes` doesn't introspect decorators or import your whole
+app to find them — it just reads the tree, because the tree already is the
+answer. A new API version (`v2`) is `shutil.copytree` with a filter, so `v1`
+shares no router state with it and can't be touched by a `v2` change — no
+`if version == 2` branches rotting in a handler, no versioning that only
+works if everyone remembers the convention.
+
+```text
+Application
+  → Router (reads Api/ — no decorators, no import-time registration)
+    → Middleware chain (logging, CORS, auth, ...)
+      → Dependency injection (Depends(), providers, path params)
+        → Your handler
+          → ORM (optional) → SQLite / PostgreSQL
+```
 
 ## 60 seconds to a running API
 
@@ -148,6 +159,15 @@ fields, relations, aggregates, transactions, migrations, encrypted files.
 
 **→ Full comparison with trade-offs:** [docs/comparison.md](https://endocore.readthedocs.io/en/latest/comparison/)
 
+### Coming from FastAPI?
+
+The mental model carries over directly — same ASGI deployment, a similar
+`Request`/`Response` shape, the same `Depends(...)` pattern. What changes is
+where a route *lives*: instead of a decorator wherever you happened to put
+it, `POST /v1/user/role` is the file `Api/v1/User/Role/Post.py`. You can
+migrate incrementally, endpoint by endpoint, since nothing about one route's
+file has anything to do with another's.
+
 ## Everything else is one link away
 
 The docs cover every corner in depth — routing rules and edge cases,
@@ -166,10 +186,17 @@ cd example && end dev                  # run the bundled example app
 
 Run the framework's own tests with `pytest`; run an app's tests with `end test`.
 
+---
+
+EndoCore is built around one idea: **your directory tree should already
+describe your API.** No duplicated routing tables, no hidden registration,
+no drift between what the code does and what the docs say it does — just
+files, folders, and behavior you can predict by looking at where things live.
+
 ## License
 
 MIT. See [`LICENSE`](LICENSE). Contributions: [`docs/contributing.md`](docs/contributing.md).
 Changelog: [`CHANGELOG.md`](CHANGELOG.md).
 
-> Personal / sporting-interest project, Beta (`0.7.0b1`). Client-usable today;
+> Personal / sporting-interest project, Beta (`0.7.0b2`). Client-usable today;
 > stabilizing toward `1.0`.

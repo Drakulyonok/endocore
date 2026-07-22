@@ -2,6 +2,13 @@
 
 All notable changes to EndoCore are documented here.
 
+## [0.7.0b2] — 2026-07-22 — README/metadata refresh
+
+No code changes — PyPI has no way to update a README on an already-published
+release, and the README was substantially rewritten (as a proper pitch, with
+a Discord link) after 0.7.0b1 was uploaded. This release exists solely to
+carry that README to PyPI. See 0.7.0b1 just below for the actual feature set.
+
 ## [0.7.0b1] — 2026-07-22 — connection pooling, `aatomic()`, built-in auth
 
 **1679 tests (plus 3 PostgreSQL pool tests behind ENDOCORE_TEST_POSTGRES_DSN).**
