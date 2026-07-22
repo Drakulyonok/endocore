@@ -1,7 +1,13 @@
 site_name: EndoCore
 site_description: File-based ASGI backend framework — the folder tree is the API.
 site_author: Drakulyonok
-site_url: https://endocore.readthedocs.io/
+# mkdocs-static-i18n derives its language-switcher links from the *path*
+# component of site_url. On Read the Docs that path is dynamic per version
+# (/en/latest/, /en/v0.7.0b1/, ...) — a static value here would make the
+# switcher link to a path that doesn't exist. RTD injects the real one via
+# READTHEDOCS_CANONICAL_URL at build time; other builds (GitHub Pages, local
+# `mkdocs serve`) fall back to the GitHub Pages project URL.
+site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://drakulyonok.github.io/endocore/"]
 repo_url: https://github.com/Drakulyonok/endocore
 repo_name: Drakulyonok/endocore
 copyright: Copyright &copy; 2026 Drakulyonok — MIT License
