@@ -1,9 +1,10 @@
 name: Publish to PyPI
 
-# Publishes on a version tag (e.g. v0.6.0b1) using PyPI Trusted Publishing
-# (OIDC) — no API token stored in the repo. Configure the trusted publisher
-# once at https://pypi.org/manage/project/endocore/settings/publishing/
-# (workflow: publish.yml, environment: pypi).
+# Publishes on a version tag (e.g. v0.8.0b1) using an API token stored as the
+# PYPI_API_TOKEN repo secret. Trusted Publishing (OIDC) was tried first but
+# PyPI rejected it with `invalid-publisher` on both 0.7.0b2 and 0.8.0b1 (no
+# matching publisher was ever registered on the project's PyPI settings) —
+# a token is the one that has actually worked.
 
 on:
   push:
@@ -34,11 +35,15 @@ jobs:
     environment:
       name: pypi
       url: https://pypi.org/project/endocore/
-    permissions:
-      id-token: write        # required for Trusted Publishing
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Upload to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          python -m pip install --upgrade pip twine
+          twine upload dist/*
