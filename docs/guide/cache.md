@@ -72,6 +72,25 @@ extensions = [
 
 Values are pickled; keys are namespaced with a prefix (`endocore:` by default).
 
+!!! warning "Sign cached values if Redis isn't fully trusted"
+    `pickle.loads()` on whatever bytes Redis returns is only as safe as Redis
+    itself — anything that can write that key (an exposed/misconfigured
+    instance, a compromised neighboring service) gets code execution on the
+    next cache read. Pass `secret=` to HMAC-sign every value on write and
+    verify it on read; a missing or wrong signature is treated as a cache
+    miss, never an exception:
+
+    ```python
+    extensions = [
+        RedisExtension(url="redis://localhost:6379/0"),
+        CacheExtension(backend="redis", secret=env("SECRET_KEY")),
+    ]
+    ```
+
+    Without `secret=`, values are unsigned (as before) and a warning is
+    raised once per cache instance.
+
 !!! tip "Rate limiting"
-    The built-in `rate_limit_middleware` uses its own in-memory counter. For a
-    distributed limiter, back it with Redis.
+    `rate_limit_middleware(..., redis_client=...)` shares one limit across
+    every worker process instead of counting per-process — see
+    [Middleware](middleware.md#sharing-the-rate-limit-across-workers).

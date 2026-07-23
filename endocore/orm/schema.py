@@ -12,7 +12,13 @@ from endocore.orm.fields import ForeignKey
 
 
 def _sql_literal(value) -> str | None:
-    """Render a simple default value as a safe SQL literal (or None to skip)."""
+    """Render a simple default value as a safe SQL literal (or None to skip).
+
+    DDL (``DEFAULT ...`` in CREATE/ALTER) can't take a bound parameter — this
+    is the one place a value is escaped into SQL text rather than bound. Only
+    ever called with a ``Field(default=...)`` from model source, at boot or
+    from ``endo makemigrations`` — never with request data.
+    """
     if value is None:
         return None
     if isinstance(value, bool):

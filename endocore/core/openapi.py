@@ -74,17 +74,26 @@ def generate_openapi(app, *, title: str = "EndoCore API", version: str = "1.0.0"
     }
 
 
-SWAGGER_UI_HTML = """<!DOCTYPE html>
+#: Pinned + SRI so a compromised CDN/npm release can't inject JS here.
+#: Re-hash with: openssl dgst -sha384 -binary <file> | openssl base64 -A
+_SWAGGER_UI_VERSION = "5.17.14"
+_SWAGGER_UI_CSS_SRI = "sha384-wxLW6kwyHktdDGr6Pv1zgm/VGJh99lfUbzSn6HNHBENZlCN7W602k9VkGdxuFvPn"
+_SWAGGER_UI_JS_SRI = "sha384-wmyclcVGX/WhUkdkATwhaK1X1JtiNrr2EoYJ+diV3vj4v6OC5yCeSu+yW13SYJep"
+
+SWAGGER_UI_HTML = f"""<!DOCTYPE html>
 <html>
 <head>
   <title>API docs</title>
-  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css">
+  <link rel="stylesheet"
+        href="https://unpkg.com/swagger-ui-dist@{_SWAGGER_UI_VERSION}/swagger-ui.css"
+        integrity="{_SWAGGER_UI_CSS_SRI}" crossorigin="anonymous">
 </head>
 <body>
   <div id="swagger-ui"></div>
-  <script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@{_SWAGGER_UI_VERSION}/swagger-ui-bundle.js"
+          integrity="{_SWAGGER_UI_JS_SRI}" crossorigin="anonymous"></script>
   <script>
-    window.onload = () => SwaggerUIBundle({ url: '/openapi.json', dom_id: '#swagger-ui' });
+    window.onload = () => SwaggerUIBundle({{ url: '/openapi.json', dom_id: '#swagger-ui' }});
   </script>
 </body>
 </html>

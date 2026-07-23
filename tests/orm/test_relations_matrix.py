@@ -101,6 +101,64 @@ def test_m2m_add_idempotent(db):
     assert b.tags.count() == 1
 
 
+def test_m2m_add_bogus_target_still_raises(db):
+    """The idempotent-race handling in add() must not swallow a genuinely
+    invalid target — only a real duplicate-key race is silently accepted."""
+    b = Book.objects.create(title="T")
+    with pytest.raises(Exception, match="FOREIGN KEY|foreign key"):
+        b.tags.add(999999)
+    assert b.tags.count() == 0
+
+
+def test_m2m_set_rolls_back_clear_on_failure(db):
+    b = Book.objects.create(title="T")
+    t = Tag.objects.create(name="a")
+    b.tags.add(t)
+    with pytest.raises(Exception):
+        b.tags.set([999999])
+    assert {t.name for t in b.tags.all()} == {"a"}  # clear() rolled back, not left empty
+
+
+def test_m2m_add_concurrent_race_stays_idempotent(tmp_path):
+    """Two add() calls racing the same (instance, target) pair must both
+    succeed with exactly one through-table row — not leak the loser's
+    IntegrityError past the caller (the through table's composite primary
+    key is what would otherwise raise)."""
+    import threading
+
+    configure(backend="sqlite", database=str(tmp_path / "m2m_race.db"), pool_size=4)
+    create_all(Author, Profile, Tag, Book)
+    try:
+        book = Book.objects.create(title="T")
+        tag = Tag.objects.create(name="x")
+
+        outcomes: list[str] = []
+        lock = threading.Lock()
+        attempts = 6
+        barrier = threading.Barrier(attempts)
+
+        def attempt():
+            barrier.wait()
+            try:
+                book.tags.add(tag)
+                outcome = "ok"
+            except Exception as exc:  # noqa: BLE001
+                outcome = f"error: {exc!r}"
+            with lock:
+                outcomes.append(outcome)
+
+        threads = [threading.Thread(target=attempt) for _ in range(attempts)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(10)
+
+        assert outcomes == ["ok"] * attempts, outcomes
+        assert book.tags.count() == 1
+    finally:
+        get_connection().close()
+
+
 def test_m2m_remove(db):
     b = Book.objects.create(title="T")
     t1, t2 = Tag.objects.create(name="a"), Tag.objects.create(name="b")

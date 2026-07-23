@@ -27,6 +27,11 @@ from endocore.orm.fields import (
 #: All concrete (non-abstract) models, in definition order — used by migrations.
 _MODEL_REGISTRY: list = []
 
+#: Field-name substrings masked in __repr__ (password_hash, api_key, ...) —
+#: same idea as the log masking in endocore.core.logging, kept local since
+#: the ORM has no dependency on that package.
+_SENSITIVE_FIELD_HINTS = ("password", "passwd", "secret", "token", "api_key", "apikey")
+
 
 def get_models() -> list:
     """Every concrete model defined so far (order of definition)."""
@@ -292,7 +297,11 @@ class Model(metaclass=ModelBase):
             if field.primary_key:
                 continue
             if field.internal_type in {"CharField", "TextField"}:
-                bits.append(f"{field.name}={getattr(self, field.name, None)!r}")
+                if any(hint in field.name.lower() for hint in _SENSITIVE_FIELD_HINTS):
+                    value = "***"
+                else:
+                    value = getattr(self, field.name, None)
+                bits.append(f"{field.name}={value!r}")
                 break
         return f"<{type(self).__name__} {' '.join(bits)}>"
 

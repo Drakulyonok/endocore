@@ -129,3 +129,71 @@ def test_custom_headers(headers):
     _, out, _ = emit(Response.json({}, headers=headers))
     for k, v in headers.items():
         assert any(hk.lower() == k.lower() and hv == v for hk, hv in out)
+
+
+# -- header/cookie injection (CWE-113) ----------------------------------------
+
+
+@pytest.mark.parametrize("payload", [
+    "evil\r\nSet-Cookie: admin=true",
+    "evil\nX-Injected: 1",
+    "evil\rX-Injected: 1",
+    "evil\x00null",
+])
+def test_set_cookie_rejects_crlf_in_value(payload):
+    with pytest.raises(ValueError):
+        Response.json({}).set_cookie("pref", payload)
+
+
+def test_set_cookie_rejects_crlf_in_key():
+    with pytest.raises(ValueError):
+        Response.json({}).set_cookie("pref\r\nX-Evil: 1", "v")
+
+
+def test_set_cookie_rejects_crlf_in_domain():
+    with pytest.raises(ValueError):
+        Response.json({}).set_cookie("pref", "v", domain="evil.com\r\nX-Evil: 1")
+
+
+def test_custom_header_value_rejects_crlf():
+    r = Response.json({})
+    r.headers["X-Echo"] = "value\r\nX-Injected: yes"
+    with pytest.raises(ValueError):
+        emit(r)
+
+
+def test_custom_header_name_rejects_crlf():
+    r = Response.json({})
+    r.headers["X-Foo\r\nX-Evil: 1"] = "bar"
+    with pytest.raises(ValueError):
+        emit(r)
+
+
+def test_media_type_rejects_crlf():
+    r = Response(b"x", media_type="text/plain\r\nX-Evil: 1")
+    with pytest.raises(ValueError):
+        emit(r)
+
+
+def test_redirect_location_rejects_crlf():
+    r = Response.redirect("/next\r\nX-Evil: 1")
+    with pytest.raises(ValueError):
+        emit(r)
+
+
+def test_streaming_response_header_value_rejects_crlf():
+    r = StreamingResponse([b"x"], headers={"X-Echo": "value\r\nX-Injected: yes"})
+    with pytest.raises(ValueError):
+        emit(r)
+
+
+def test_streaming_response_header_name_rejects_crlf():
+    r = StreamingResponse([b"x"], headers={"X-Foo\r\nX-Evil: 1": "bar"})
+    with pytest.raises(ValueError):
+        emit(r)
+
+
+def test_streaming_response_media_type_rejects_crlf():
+    r = StreamingResponse([b"x"], media_type="text/plain\r\nX-Evil: 1")
+    with pytest.raises(ValueError):
+        emit(r)

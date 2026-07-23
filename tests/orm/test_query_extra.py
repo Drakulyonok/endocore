@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+
 import pytest
 
 from endocore.orm import Model, fields, configure, create_all, F, Count, Sum, Avg, Min, Max
@@ -11,6 +13,10 @@ from endocore.orm.connection import get_connection
 class Row(Model):
     name = fields.CharField(max_length=20)
     n = fields.IntegerField(default=0)
+
+
+class Claim(Model):
+    key = fields.CharField(max_length=40, unique=True)
 
 
 @pytest.fixture()
@@ -68,3 +74,60 @@ def test_update_or_create(db):
     obj2, created2 = Row.objects.update_or_create(name="x", defaults={"n": 2})
     assert not created2 and obj2.n == 2
     assert Row.objects.count() == 1
+
+
+@pytest.fixture()
+def claim_db():
+    configure(backend="sqlite", database=":memory:", pool_size=1)
+    create_all(Claim)
+    yield
+    get_connection().close()
+
+
+def _race(fn, attempts=8):
+    barrier = threading.Barrier(attempts, timeout=10)
+    outcomes: list = []
+    lock = threading.Lock()
+
+    def run():
+        barrier.wait()
+        outcomes.append(fn())
+
+    threads = [threading.Thread(target=run) for _ in range(attempts)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(10)
+    return outcomes
+
+
+def test_get_or_create_concurrent_race_has_exactly_one_winner(claim_db):
+    """Two get_or_create() calls racing the same not-yet-existing row must
+    never let the loser's create() raise an IntegrityError past the caller —
+    it should quietly see the winner's row instead."""
+
+    def attempt():
+        try:
+            _, created = Claim.objects.get_or_create(key="the-one-key")
+            return "created" if created else "found"
+        except Exception as exc:  # noqa: BLE001
+            return f"error: {exc!r}"
+
+    outcomes = _race(attempt)
+    assert outcomes.count("created") == 1, outcomes
+    assert outcomes.count("found") == len(outcomes) - 1, outcomes
+    assert Claim.objects.filter(key="the-one-key").count() == 1
+
+
+def test_update_or_create_concurrent_race_has_exactly_one_winner(claim_db):
+    def attempt():
+        try:
+            _, created = Claim.objects.update_or_create(key="the-one-key")
+            return "created" if created else "found"
+        except Exception as exc:  # noqa: BLE001
+            return f"error: {exc!r}"
+
+    outcomes = _race(attempt)
+    assert outcomes.count("created") == 1, outcomes
+    assert outcomes.count("found") == len(outcomes) - 1, outcomes
+    assert Claim.objects.filter(key="the-one-key").count() == 1

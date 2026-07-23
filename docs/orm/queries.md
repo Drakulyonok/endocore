@@ -114,12 +114,22 @@ User.objects.filter(active=False).update(active=True)          # set-based UPDAT
 User.objects.filter(spam=True).delete()                        # set-based DELETE
 ```
 
+`bulk_create`/`bulk_update` validate each object the same way `save()` does
+(required-ness, `choices`, custom validators) — a bulk write doesn't get a
+pass on invariants a single `save()` would have enforced.
+
 ## get_or_create / update_or_create
 
 ```python
 user, created = User.objects.get_or_create(name="Ada", defaults={"age": 36})
 user, created = User.objects.update_or_create(name="Ada", defaults={"age": 37})
 ```
+
+Safe under concurrency for a field with a real `unique=True` constraint: if
+two callers race the same not-yet-existing row, the loser's `create()` hits
+the constraint, and instead of raising it's treated as "someone else just
+created it" — the row is re-fetched and returned as `created=False`, same as
+if it had already existed.
 
 ## none()
 

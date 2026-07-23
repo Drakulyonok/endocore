@@ -92,6 +92,18 @@ def test_sync_background_task_runs_off_the_event_loop(loop_app):
     assert seen == {"on_loop": False}
 
 
+def test_background_task_failure_is_logged_not_raised(loop_app, caplog):
+    """The response is already sent by the time a background task runs; a
+    failure there must never propagate — but must still be visible (a failed
+    audit/alert task silently vanishing is its own kind of security gap)."""
+    def task():
+        raise RuntimeError("boom")
+
+    with caplog.at_level("ERROR"):
+        asyncio.run(loop_app._run_background(task, request_id="abc123"))
+    assert any("background task failed" in r.message and "abc123" in r.message for r in caplog.records)
+
+
 # -- rate limiter eviction --------------------------------------------------
 
 def test_rate_limit_evicts_expired_windows(monkeypatch):

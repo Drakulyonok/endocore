@@ -103,3 +103,7 @@ def test_served_endpoints(app):
     assert status == 200 and "paths" in json.loads(body)
     status2, body2 = call("/docs")
     assert status2 == 200 and b"swagger-ui" in body2
+    # pinned + SRI: no unversioned/unverified CDN asset in the docs page
+    assert b'href="https://unpkg.com/swagger-ui-dist@' in body2
+    assert b'src="https://unpkg.com/swagger-ui-dist@' in body2
+    assert body2.count(b"integrity=\"sha384-") == 2

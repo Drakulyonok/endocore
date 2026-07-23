@@ -241,7 +241,8 @@ class SQLCompiler:
 
     def count(self, meta, *, wheres, distinct=False) -> tuple[str, list]:
         inner = "*" if not distinct else f"DISTINCT {self.backend.quote(meta.pk.column)}"
-        sql = f"SELECT COUNT({inner}) FROM {self.backend.quote(meta.table)}"
+        # identifier quoted; no values
+        sql = f"SELECT COUNT({inner}) FROM {self.backend.quote(meta.table)}"  # nosec B608
         where_sql, params = self._where_clause(meta, wheres)
         return sql + where_sql, params
 
@@ -250,14 +251,16 @@ class SQLCompiler:
         params: list = []
         for _, frag_params in frags:
             params.extend(frag_params)
-        sql = f"SELECT {cols} FROM {self.backend.quote(meta.table)}"
+        # identifier quoted; cols are pre-built aggregate SQL; no raw values
+        sql = f"SELECT {cols} FROM {self.backend.quote(meta.table)}"  # nosec B608
         where_sql, where_params = self._where_clause(meta, wheres)
         return sql + where_sql, params + where_params
 
     def insert(self, meta, columns: list[str], values: list) -> tuple[str, list, bool]:
         quoted = ", ".join(self.backend.quote(c) for c in columns)
         placeholders = self.backend.placeholders(len(values))
-        sql = f"INSERT INTO {self.backend.quote(meta.table)} ({quoted}) VALUES ({placeholders})"
+        # identifiers quoted; values are bound placeholders
+        sql = f"INSERT INTO {self.backend.quote(meta.table)} ({quoted}) VALUES ({placeholders})"  # nosec B608
         returning = self.backend.supports_returning and meta.pk is not None
         if returning:
             sql += f" RETURNING {self.backend.quote(meta.pk.column)}"
@@ -267,7 +270,8 @@ class SQLCompiler:
         quoted = ", ".join(self.backend.quote(c) for c in columns)
         one = f"({self.backend.placeholders(len(columns))})"
         groups = ", ".join([one] * len(rows))
-        sql = f"INSERT INTO {self.backend.quote(meta.table)} ({quoted}) VALUES {groups}"
+        # identifiers quoted; values are bound placeholders
+        sql = f"INSERT INTO {self.backend.quote(meta.table)} ({quoted}) VALUES {groups}"  # nosec B608
         params: list = []
         for row in rows:
             params.extend(row)
@@ -290,14 +294,16 @@ class SQLCompiler:
             else:
                 set_parts.append(f"{col} = {self.backend.placeholder}")
                 params.append(value)
-        sql = f"UPDATE {self.backend.quote(meta.table)} SET {', '.join(set_parts)}"
+        # identifiers quoted; values are bound placeholders
+        sql = f"UPDATE {self.backend.quote(meta.table)} SET {', '.join(set_parts)}"  # nosec B608
         where_sql, where_params = self._where_clause(meta, wheres)
         sql += where_sql
         params.extend(where_params)
         return sql, params
 
     def delete(self, meta, wheres) -> tuple[str, list]:
-        sql = f"DELETE FROM {self.backend.quote(meta.table)}"
+        # identifier quoted; no values
+        sql = f"DELETE FROM {self.backend.quote(meta.table)}"  # nosec B608
         where_sql, params = self._where_clause(meta, wheres)
         return sql + where_sql, params
 
@@ -339,7 +345,8 @@ class SQLCompiler:
     def count_joined(self, meta, *, wheres) -> tuple[str, list]:
         resolver = RelationResolver(meta, self.backend)
         where_sql, params = self._where_clause(meta, wheres, resolver)
-        sql = f"SELECT COUNT(*) FROM {self.backend.quote(meta.table)}"
+        # identifier quoted; no values
+        sql = f"SELECT COUNT(*) FROM {self.backend.quote(meta.table)}"  # nosec B608
         if resolver.joins:
             sql += " " + " ".join(resolver.joins)
         return sql + where_sql, params

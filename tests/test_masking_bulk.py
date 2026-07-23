@@ -53,3 +53,17 @@ def test_original_not_mutated():
     data = {"password": "x", "nested": {"token": "y"}}
     mask(data)
     assert data == {"password": "x", "nested": {"token": "y"}}
+
+
+# -- substring/variant field names must mask too (not just an exact key) -----
+
+
+@pytest.mark.parametrize("key", [
+    "old_password", "new_password", "password_confirm", "confirmPassword",
+    "user_token", "refresh_token", "access_token",
+    "X-Api-Key", "api-key", "apikey",
+    "Authorization", "authorization_header",
+    "credit_card_number",
+])
+def test_sensitive_field_name_variants_are_masked(key):
+    assert mask({key: "leaked-if-not-masked"}) == {key: MASK}

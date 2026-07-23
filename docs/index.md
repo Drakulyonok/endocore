@@ -121,7 +121,7 @@ New here? Follow this path:
 
 ## Status
 
-EndoCore is in beta (`0.8.0b1`), stabilising toward `1.0`. It ships with 1600+
+EndoCore is in beta (`0.9.0b1`), stabilising toward `1.0`. It ships with 1700+
 tests covering routing, the ORM (both dialects, injection tests), migrations,
 middleware, DI, cache and WebSockets.
 

@@ -3,7 +3,7 @@
 <p>
   <a href="https://pypi.org/project/endocore/"><img alt="PyPI" src="https://img.shields.io/pypi/v/endocore.svg"></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.11%2B-blue.svg">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-1696%20passing-brightgreen.svg">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-1756%20passing-brightgreen.svg">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green.svg">
   <a href="https://discord.gg/jwvGj2M9EX"><img alt="Discord" src="https://img.shields.io/badge/chat-discord-5865F2?logo=discord&logoColor=white"></a>
 </p>
@@ -101,7 +101,7 @@ nothing else is on the critical path of "does this framework start."
 
 ## Proof, not promises
 
-- **1696 tests** in the framework's own suite (routing matrices, ORM dialect
+- **1756 tests** in the framework's own suite (routing matrices, ORM dialect
   parity, SQL-injection tests, migration rollback, DI edge cases).
 - **Three full demo apps** in [`demos/`](demos/) that don't just run — they're
   **race-tested under real concurrency**: a kanban board with live WebSocket
@@ -112,6 +112,12 @@ nothing else is on the critical path of "does this framework start."
 - **A connection pool test suite that runs against real PostgreSQL**
   (`tests/orm/test_postgres_pool.py`), proving transaction isolation under
   concurrency before you'd trust it in production — not just on SQLite.
+- **An adversarial security audit**, not just a linter run: response-splitting,
+  a pickle-RCE cache path, cross-site WebSocket hijacking, and two ORM race
+  conditions were found by reproducing the exploit, fixed, and re-verified —
+  see the [security guide](https://endocore.readthedocs.io/en/latest/guide/security/)
+  and [changelog](CHANGELOG.md). `bandit` + `pip-audit` now run in CI on every
+  push, and the request parsers are property-fuzzed with `hypothesis`.
 
 ## A quick look at the ORM
 
@@ -198,5 +204,5 @@ files, folders, and behavior you can predict by looking at where things live.
 MIT. See [`LICENSE`](LICENSE). Contributions: [`docs/contributing.md`](docs/contributing.md).
 Changelog: [`CHANGELOG.md`](CHANGELOG.md).
 
-> Personal / sporting-interest project, Beta (`0.8.0b1`). Client-usable today;
+> Personal / sporting-interest project, Beta (`0.9.0b1`). Client-usable today;
 > stabilizing toward `1.0`.

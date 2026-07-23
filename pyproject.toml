@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "endocore"
-version = "0.8.0b1"
+version = "0.9.0b1"
 description = "File-based ASGI backend framework (folder tree = API) with an async-capable secure ORM, DI, WebSockets + pub/sub, cache, OpenAPI, migrations, and service integrations."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -34,7 +34,7 @@ dependencies = ["uvicorn>=0.29"]
 # ORM: SQLite works out of the box (stdlib). PostgreSQL needs the psycopg driver.
 postgres = ["psycopg[binary]>=3.1"]
 # Encrypted FileField storage needs a real, vetted AEAD implementation.
-files = ["cryptography>=41"]
+files = ["cryptography>=48.0.1"]
 # In-process dev watcher.
 watch = ["watchfiles>=0.21"]
 # Service integrations.
@@ -42,7 +42,7 @@ redis = ["redis>=5"]
 celery = ["celery>=5"]
 # Typed request bodies + richer OpenAPI schemas.
 pydantic = ["pydantic>=2"]
-dev = ["watchfiles>=0.21", "pytest>=8", "psycopg[binary]>=3.1", "cryptography>=41"]
+dev = ["watchfiles>=0.21", "pytest>=8", "psycopg[binary]>=3.1", "cryptography>=48.0.1"]
 
 [project.scripts]
 # `end` is a reserved keyword in PowerShell (begin/process/end blocks), so a

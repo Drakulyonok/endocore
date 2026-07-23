@@ -108,8 +108,13 @@ class Request:
             return None
         try:
             return json.loads(raw)
-        except json.JSONDecodeError as exc:
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             raise BadRequest(f"invalid JSON: {exc}") from None
+        except RecursionError:
+            # deeply nested input (e.g. thousands of "[") blows the Python
+            # recursion limit in the stdlib's pure-Python JSON scanner —
+            # still just malformed input, not a server error
+            raise BadRequest("invalid JSON: too deeply nested") from None
 
     async def form(self) -> FormData:
         """Parse an ``application/x-www-form-urlencoded`` or ``multipart/form-data`` body."""

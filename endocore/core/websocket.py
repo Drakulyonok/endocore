@@ -15,8 +15,32 @@ from __future__ import annotations
 
 import json
 from typing import Any, Awaitable, Callable
+from urllib.parse import urlparse
 
 from endocore.core.datastructures import QueryParams
+
+
+def origin_allowed(headers: dict[str, str], allowed: Any) -> bool:
+    """Same-origin check for the websocket handshake (mitigates cross-site
+    websocket hijacking, since a browser attaches cookies to the handshake
+    regardless of which site's script opened the connection).
+
+    ``allowed`` is ``None`` (enforce same-origin against ``Host``), ``"*"``
+    (disable the check), or an origin allowlist — same shape as
+    ``cors_middleware``'s ``allow_origins``. A request with no ``Origin``
+    header (any non-browser client) is always allowed.
+    """
+    origin = headers.get("origin")
+    if origin is None or allowed == "*":
+        return True
+    if allowed is not None:
+        return origin in allowed
+    host = headers.get("host", "")
+    try:
+        origin_host = urlparse(origin).netloc.lower()
+    except ValueError:
+        return False
+    return bool(origin_host) and origin_host == host.lower()
 
 
 class WebSocketDisconnect(Exception):

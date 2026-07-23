@@ -73,6 +73,10 @@ post.tags.count()
 `create_all(...)` builds through tables in a second pass, so relation order
 doesn't matter.
 
+`add()` stays idempotent under concurrency too: if two callers race adding
+the same pair, the loser's insert hits the through table's composite primary
+key and is treated as "already related", not raised.
+
 ## Avoiding N+1: select_related & prefetch_related
 
 **`select_related`** — for forward FK / OneToOne — fetches related rows in the

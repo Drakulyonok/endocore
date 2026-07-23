@@ -81,4 +81,7 @@ deferred to the outermost `atomic()` exit.
   (defaults: SQLite 1, PostgreSQL 5). With SQLite's pool of 1, transactions
   serialize and autocommit writes wait out the open transaction; with
   PostgreSQL, up to `pool_size` transactions run truly concurrently.
+- Waiting for a free pooled connection gives up after `pool_timeout` seconds
+  (default 30) and raises `PoolTimeoutError` — a genuinely exhausted or stuck
+  pool fails fast and loud instead of hanging every caller forever.
 - SQLite is single-writer by nature; PostgreSQL handles concurrent writers well.

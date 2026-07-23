@@ -653,7 +653,8 @@ class ManyRelatedManager:
             b.quote(self.field.source_column()),
             b.quote(self.field.target_column()),
         )
-        sql = f"SELECT {tgt} FROM {table} WHERE {src} = {b.placeholder}"
+        # identifiers quoted; value is a bound placeholder
+        sql = f"SELECT {tgt} FROM {table} WHERE {src} = {b.placeholder}"  # nosec B608
         rows = self._conn().execute(sql, [self.instance.pk]).fetchall()
         return [r[0] for r in rows]
 
@@ -668,6 +669,12 @@ class ManyRelatedManager:
         return len(self._target_ids())
 
     def add(self, *objects) -> None:
+        """Idempotent: adding a relation that already exists is a no-op, even
+        if a concurrent add() for the same pair wins the race first — the
+        through table's composite primary key means the loser's INSERT hits
+        an IntegrityError. That error is only ever swallowed after confirming
+        the pair really is there now; a bogus target (a FOREIGN KEY violation,
+        also an IntegrityError) still raises."""
         b = self._backend()
         table, src, tgt = (
             b.quote(self.field.through_table()),
@@ -682,10 +689,24 @@ class ManyRelatedManager:
                 if target_pk in existing:
                     continue
                 sql = (
-                    f"INSERT INTO {table} ({src}, {tgt}) "
+                    # identifiers quoted; values are bound placeholders
+                    f"INSERT INTO {table} ({src}, {tgt}) "  # nosec B608
                     f"VALUES ({b.placeholder}, {b.placeholder})"
                 )
-                conn.execute(sql, [self.instance.pk, target_pk], write=True)
+                try:
+                    with conn.atomic():  # nested -> SAVEPOINT: a lost race here
+                        conn.execute(sql, [self.instance.pk, target_pk], write=True)
+                except Exception as exc:
+                    if type(exc).__name__ != "IntegrityError":
+                        raise
+                    check = (
+                        # identifiers quoted; values are bound placeholders
+                        f"SELECT 1 FROM {table} WHERE {src} = {b.placeholder} "  # nosec B608
+                        f"AND {tgt} = {b.placeholder}"
+                    )
+                    row = conn.execute(check, [self.instance.pk, target_pk]).fetchone()
+                    if row is None:  # not a lost race — a real constraint violation
+                        raise
                 existing.add(target_pk)
 
     def remove(self, *objects) -> None:
@@ -699,18 +720,23 @@ class ManyRelatedManager:
         if not ids:
             return
         placeholders = b.placeholders(len(ids))
-        sql = f"DELETE FROM {table} WHERE {src} = {b.placeholder} AND {tgt} IN ({placeholders})"
+        # identifiers quoted; values are bound placeholders
+        sql = f"DELETE FROM {table} WHERE {src} = {b.placeholder} AND {tgt} IN ({placeholders})"  # nosec B608
         self._conn().execute(sql, [self.instance.pk, *ids], write=True)
 
     def clear(self) -> None:
         b = self._backend()
         table, src = b.quote(self.field.through_table()), b.quote(self.field.source_column())
-        sql = f"DELETE FROM {table} WHERE {src} = {b.placeholder}"
+        # identifier quoted; value is a bound placeholder
+        sql = f"DELETE FROM {table} WHERE {src} = {b.placeholder}"  # nosec B608
         self._conn().execute(sql, [self.instance.pk], write=True)
 
     def set(self, objects) -> None:
-        self.clear()
-        self.add(*objects)
+        """Replace the whole relation set. All-or-nothing: if adding the new
+        set fails, the clear() is rolled back too, not left half-done."""
+        with self._conn().atomic():
+            self.clear()
+            self.add(*objects)
 
 
 class ManyRelatedDescriptor:

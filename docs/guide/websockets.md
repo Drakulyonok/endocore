@@ -44,6 +44,26 @@ websocket.path, websocket.path_params, websocket.headers, websocket.query
 A disconnect raises `WebSocketDisconnect`; the `iter_*` helpers stop cleanly on
 it. An unmatched websocket path is rejected with close code `4404`.
 
+## Origin checking
+
+The handshake enforces same-origin by default outside `dev=True` — otherwise
+a page on any other site could open a websocket to your app and ride along
+on a cookie-based session (cross-site websocket hijacking), since browsers
+attach cookies to a websocket handshake regardless of which site's script
+opened the connection. A request with no `Origin` header (any non-browser
+client) is always let through — there's no browser session to hijack there.
+
+Rejected connections close with code `4403`. Configure it explicitly for a
+real cross-origin frontend:
+
+```python
+app = Application(ws_allowed_origins=["https://app.example.com"])
+```
+
+`ws_allowed_origins="*"` disables the check entirely; leaving it unset only
+relaxes it in `dev=True` (a local frontend on a different port is a
+different origin).
+
 ## Pub/Sub: rooms & broadcast
 
 `WebSocketManager` tracks connections by room and fans messages out:

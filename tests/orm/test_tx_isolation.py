@@ -218,6 +218,52 @@ def test_pool_size_validation(tmp_path):
     configure(backend="sqlite", database=":memory:")  # restore a sane default
 
 
+def test_exhausted_pool_raises_instead_of_hanging_forever(tmp_path):
+    """A stuck/exhausted pool must fail fast and loud, not hang the caller
+    (and the worker thread behind it) forever with no diagnostic."""
+    from endocore.orm.exceptions import PoolTimeoutError
+
+    configure(backend="sqlite", database=str(tmp_path / "timeout.db"), pool_size=1, pool_timeout=0.3)
+    conn = get_connection()
+    try:
+        held = conn._acquire()
+        started = time.monotonic()
+        with pytest.raises(PoolTimeoutError):
+            conn._acquire()
+        elapsed = time.monotonic() - started
+        assert 0.2 < elapsed < 2.0, elapsed
+        conn._release(held)
+    finally:
+        conn.close()
+        configure(backend="sqlite", database=":memory:")
+
+
+def test_pool_wait_wakes_up_promptly_on_release(tmp_path):
+    """A waiter must not sit out the full pool_timeout once a connection is
+    actually released — the timeout is a ceiling, not a fixed delay."""
+    configure(backend="sqlite", database=str(tmp_path / "wake.db"), pool_size=1, pool_timeout=5.0)
+    conn = get_connection()
+    try:
+        held = conn._acquire()
+        waited: list[float] = []
+
+        def waiter():
+            started = time.monotonic()
+            got = conn._acquire()
+            waited.append(time.monotonic() - started)
+            conn._release(got)
+
+        t = threading.Thread(target=waiter)
+        t.start()
+        time.sleep(0.2)
+        conn._release(held)
+        t.join(3)
+        assert waited and waited[0] < 1.0, waited
+    finally:
+        conn.close()
+        configure(backend="sqlite", database=":memory:")
+
+
 # -- Unicode case-insensitive lookups on SQLite ----------------------------
 
 def test_icontains_iexact_cyrillic(db):

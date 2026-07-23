@@ -43,6 +43,7 @@ class Application:
         max_body_size: int | None = 16 * 1024 * 1024,
         openapi: bool | None = None,
         openapi_title: str = "EndoCore API",
+        ws_allowed_origins: Any = None,
     ) -> None:
         self.app_dir = Path(app_dir).resolve()
         self.api_dir = self.app_dir / "Api"
@@ -56,6 +57,10 @@ class Application:
         self.default_version = default_version
         #: reject request bodies larger than this (bytes); ``None`` = unlimited.
         self.max_body_size = max_body_size
+        #: websocket handshake origin policy: ``None`` enforces same-origin
+        #: outside ``dev=True``; ``"*"`` disables it; or pass an allowlist
+        #: (same shape as ``cors_middleware``'s ``allow_origins``).
+        self.ws_allowed_origins = ws_allowed_origins
         self.registry = Registry()
         self.middlewares: list[Middleware] = [logging_middleware]
         self.on_startup: list = []
@@ -328,22 +333,28 @@ class Application:
 
         background = getattr(response, "background", None)
         if background is not None:
-            await self._run_background(background)
+            await self._run_background(background, request_id=request.scope.get("request_id"))
 
     async def _run_hook(self, hook) -> None:
         result = hook()
         if asyncio.iscoroutine(result):
             await result
 
-    async def _run_background(self, task) -> None:
+    async def _run_background(self, task, *, request_id: str | None = None) -> None:
         """Run a post-response background task; sync callables go to a worker
-        thread so they can't block the loop between requests."""
-        if inspect.iscoroutinefunction(task):
-            await task()
-        else:
-            result = await asyncio.to_thread(task)
-            if asyncio.iscoroutine(result):
-                await result
+        thread so they can't block the loop between requests. The response is
+        already sent, so a failure here is logged, never re-raised."""
+        try:
+            if inspect.iscoroutinefunction(task):
+                await task()
+            else:
+                result = await asyncio.to_thread(task)
+                if asyncio.iscoroutine(result):
+                    await result
+        except Exception:  # noqa: BLE001
+            self.logger.error(
+                "background task failed id=%s\n%s", request_id, traceback.format_exc().rstrip()
+            )
 
     async def _lifespan(self, receive, send) -> None:
         while True:
@@ -370,7 +381,7 @@ class Application:
     # -- websocket dispatch -----------------------------------------------
 
     async def _handle_websocket(self, scope, receive, send) -> None:
-        from endocore.core.websocket import WebSocket, WebSocketDisconnect
+        from endocore.core.websocket import WebSocket, WebSocketDisconnect, origin_allowed
 
         resolution = self.registry.resolve("WEBSOCKET", scope["path"])
         if resolution.match is None:
@@ -384,6 +395,15 @@ class Application:
 
         websocket = WebSocket(scope, receive, send)
         websocket.path_params = resolution.match.params
+        # dev: relax same-origin by default so a local frontend on another port still connects.
+        effective_origins = "*" if (self.ws_allowed_origins is None and self.dev) else self.ws_allowed_origins
+        if not origin_allowed(websocket.headers, effective_origins):
+            try:
+                await receive()
+            except Exception:  # noqa: BLE001
+                pass
+            await send({"type": "websocket.close", "code": 4403})
+            return
         entry = resolution.match.entry
         try:
             kwargs = await solve(entry.handler, None, self, websocket=websocket)

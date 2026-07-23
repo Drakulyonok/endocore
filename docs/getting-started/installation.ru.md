@@ -50,7 +50,7 @@ pip install "endocore[postgres,files,redis,celery,pydantic,watch]"
 ## Проверка установки
 
 ```bash
-endo --version         # EndoCore 0.7.0b2
+endo --version         # EndoCore 0.9.0b1
 endo doctor            # окружение, зависимости, проверки проекта
 ```
 

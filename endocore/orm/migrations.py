@@ -62,7 +62,8 @@ def _rebuild(table: str, create_sql: str, from_cols: dict, to_cols: dict, q) -> 
     cols_sql = ", ".join(q(c) for c in common)
     return [
         temp_create,
-        f"INSERT INTO {q(temp)} ({cols_sql}) SELECT {cols_sql} FROM {q(table)}",
+        # identifiers quoted; no values
+        f"INSERT INTO {q(temp)} ({cols_sql}) SELECT {cols_sql} FROM {q(table)}",  # nosec B608
         f"DROP TABLE {q(table)}",
         f"ALTER TABLE {q(temp)} RENAME TO {q(table)}",
     ]
@@ -157,21 +158,28 @@ class Migrator:
 
     def applied(self) -> list[str]:
         self._ensure_table()
-        sql = f"SELECT {self.backend.quote('name')} FROM {self.backend.quote(_MIGRATIONS_TABLE)} " \
-              f"ORDER BY {self.backend.quote('name')}"
+        # identifiers quoted; no values
+        sql = (
+            f"SELECT {self.backend.quote('name')} FROM {self.backend.quote(_MIGRATIONS_TABLE)} "  # nosec B608
+            f"ORDER BY {self.backend.quote('name')}"
+        )
         return [row[0] for row in self.conn.execute(sql).fetchall()]
 
     def _record(self, name: str) -> None:
         ph = self.backend.placeholder
         sql = (
-            f"INSERT INTO {self.backend.quote(_MIGRATIONS_TABLE)} "
+            # identifiers quoted; values are bound placeholders
+            f"INSERT INTO {self.backend.quote(_MIGRATIONS_TABLE)} "  # nosec B608
             f"({self.backend.quote('name')}, {self.backend.quote('applied_at')}) VALUES ({ph}, {ph})"
         )
         self.conn.execute(sql, [name, datetime.datetime.now().isoformat()], write=True)
 
     def _unrecord(self, name: str) -> None:
-        sql = f"DELETE FROM {self.backend.quote(_MIGRATIONS_TABLE)} " \
-              f"WHERE {self.backend.quote('name')} = {self.backend.placeholder}"
+        # identifiers quoted; value is a bound placeholder
+        sql = (
+            f"DELETE FROM {self.backend.quote(_MIGRATIONS_TABLE)} "  # nosec B608
+            f"WHERE {self.backend.quote('name')} = {self.backend.placeholder}"
+        )
         self.conn.execute(sql, [name], write=True)
 
     # -- files ------------------------------------------------------------

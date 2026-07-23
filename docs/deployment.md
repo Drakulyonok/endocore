@@ -13,12 +13,16 @@ endocore.asgi:create_app        # a factory that builds an Application from the 
 `create_app()` reads the current working directory as the app root and honours
 three env vars:
 
-- `ENDOCORE_DEV=0` — disable the in-process dev watcher (also switches
-  `/docs` + `/openapi.json` off, since they default to "on in dev only").
+- `ENDOCORE_DEV=1` — turn dev mode **on** (the in-process file watcher,
+  `/docs` + `/openapi.json`, and a relaxed websocket same-origin check for a
+  local frontend on another port). `endo dev` sets this for you; a bare
+  `uvicorn endocore.asgi:create_app --factory` with no env vars at all is
+  **off** by default — dev mode is opt-in, not opt-out, so forgetting to set
+  anything fails toward the safer production posture.
 - `ENDOCORE_DEFAULT_VERSION=latest` — resolve version-less paths.
-- `ENDOCORE_OPENAPI=1` — serve `/docs` + `/openapi.json` even with
-  `ENDOCORE_DEV=0`. Off by default in production on purpose — opt in
-  explicitly if you want the schema/UI publicly reachable.
+- `ENDOCORE_OPENAPI=1` — serve `/docs` + `/openapi.json` even with dev mode
+  off. Off by default in production on purpose — opt in explicitly if you
+  want the schema/UI publicly reachable.
 
 ## Uvicorn (single process)
 
@@ -131,12 +135,13 @@ endo showmigrations     # verify
 
 - **Build**: `pip install -r requirements.txt`
 - **Start**: `gunicorn endocore.asgi:create_app() --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT`
-- **Env**: `ENDOCORE_DEV=0`, your `DATABASE_URL`, secrets for cookies/CSRF and
-  `ENDOCORE_FILE_KEY`.
+- **Env**: your `DATABASE_URL`, secrets for cookies/CSRF and
+  `ENDOCORE_FILE_KEY` (dev mode is off by default — no `ENDOCORE_DEV` needed
+  unless you want it on).
 
 ## Production checklist
 
-- [ ] `ENDOCORE_DEV=0` (no watcher; also turns `/docs` off by default).
+- [ ] Don't set `ENDOCORE_DEV=1` (it's off by default; no watcher, `/docs` off).
 - [ ] Leave `ENDOCORE_OPENAPI` unset unless you deliberately want the schema
   public — don't set it to "1" out of habit.
 - [ ] Multiple workers behind a proxy.

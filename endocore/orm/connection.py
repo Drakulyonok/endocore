@@ -17,13 +17,14 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import time
 import warnings
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, Iterator
 
 from endocore.orm.backends import BaseBackend, get_backend
-from endocore.orm.exceptions import ConfigurationError
+from endocore.orm.exceptions import ConfigurationError, PoolTimeoutError
 
 #: Keys never echoed back in reprs / errors.
 _SECRET_KEYS = frozenset({"password", "passwd", "secret", "dsn"})
@@ -85,6 +86,9 @@ class Connection:
         self.pool_size = int(self.params.pop("pool_size", backend.default_pool_size))
         if self.pool_size < 1:
             raise ConfigurationError("pool_size must be >= 1")
+        #: max seconds to wait for a free pooled connection before raising
+        #: PoolTimeoutError, instead of blocking forever on a stuck/exhausted pool.
+        self.pool_timeout = float(self.params.pop("pool_timeout", 30.0))
         self._idle: list = []   # returned raw connections, ready to borrow
         self._all: list = []    # every raw connection ever opened (for close())
         self._cond = threading.Condition()
@@ -94,7 +98,8 @@ class Connection:
 
     def _acquire(self):
         """Borrow a raw connection: reuse an idle one, open a new one while
-        under ``pool_size``, else wait for a release."""
+        under ``pool_size``, else wait for a release (up to ``pool_timeout``)."""
+        deadline = time.monotonic() + self.pool_timeout
         with self._cond:
             while True:
                 if self._idle:
@@ -103,7 +108,14 @@ class Connection:
                     raw = self.backend.connect(**self.params)
                     self._all.append(raw)
                     return raw
-                self._cond.wait()
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise PoolTimeoutError(
+                        f"timed out after {self.pool_timeout}s waiting for a free "
+                        f"{self.alias!r} connection (pool_size={self.pool_size}); "
+                        "raise pool_size or check for a transaction held open too long"
+                    )
+                self._cond.wait(remaining)
 
     def _release(self, raw) -> None:
         """Return a raw connection to the pool."""

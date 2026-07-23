@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import pytest
 
-from endocore.orm import Model, fields, Q
+from endocore.orm import Model, fields, Q, configure, create_all
 from endocore.orm.backends import SQLiteBackend
 from endocore.orm.backends.base import BaseBackend
 from endocore.orm.compiler import SQLCompiler
+from endocore.orm.connection import get_connection
 from endocore.orm.exceptions import FieldError, UnsafeIdentifierError
 
 
@@ -98,3 +99,33 @@ def test_empty_in_is_safe_constant():
     sql, params = SQLCompiler(SQLiteBackend())._leaf(META, "name__in", [])
     assert sql == "1 = 0"
     assert params == []
+
+
+# -- __repr__ doesn't leak secret-looking fields ----------------------------
+
+
+def test_repr_masks_sensitive_field_values():
+    configure(backend="sqlite", database=":memory:")
+
+    class User(Model):
+        password_hash = fields.CharField(max_length=200)
+        email = fields.CharField(max_length=100)
+
+    create_all(User)
+    user = User.objects.create(password_hash="scrypt$16384$8$1$salt$hash", email="a@b.com")
+    text = repr(user)
+    assert "scrypt" not in text
+    assert "password_hash='***'" in text
+    get_connection().close()
+
+
+def test_repr_shows_normal_field_values():
+    configure(backend="sqlite", database=":memory:")
+
+    class Widget(Model):
+        name = fields.CharField(max_length=100)
+
+    create_all(Widget)
+    widget = Widget.objects.create(name="gizmo")
+    assert repr(widget) == "<Widget id=1 name='gizmo'>"
+    get_connection().close()

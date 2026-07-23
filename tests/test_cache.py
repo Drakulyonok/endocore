@@ -39,7 +39,7 @@ class FakeRedis:
 def cache(request):
     if request.param == "memory":
         return InMemoryCache()
-    return RedisCache(FakeRedis())
+    return RedisCache(FakeRedis(), secret="test-secret")
 
 
 @pytest.mark.parametrize("value", [1, "s", {"a": 1}, [1, 2, 3], True, None, {"n": {"deep": [1]}}])
@@ -128,3 +128,58 @@ def test_unknown_backend_raises():
 
     with pytest.raises(ConfigurationError):
         configure_cache("memcached")
+
+
+# -- RedisCache pickle-RCE hardening (CWE-502) --------------------------------
+
+
+def test_redis_cache_without_secret_warns():
+    with pytest.warns(UserWarning, match="secret"):
+        RedisCache(FakeRedis())
+
+
+def test_redis_cache_with_secret_does_not_warn(recwarn):
+    RedisCache(FakeRedis(), secret="s3cr3t")
+    assert not recwarn.list
+
+
+def test_redis_cache_signed_round_trip():
+    cache = RedisCache(FakeRedis(), secret="s3cr3t")
+    cache.set("k", {"a": 1})
+    assert cache.get("k") == {"a": 1}
+
+
+def test_redis_cache_rejects_tampered_blob_as_miss():
+    """An attacker who can write the Redis key directly (no signature) must
+    get a cache miss back, never a pickle.loads() on their bytes."""
+    import pickle
+
+    redis = FakeRedis()
+    cache = RedisCache(redis, secret="s3cr3t")
+    redis.set("endocore:evil", pickle.dumps("attacker-controlled"))
+    assert cache.get("evil", "safe-default") == "safe-default"
+
+
+def test_redis_cache_rejects_blob_signed_with_a_different_secret():
+    redis = FakeRedis()
+    RedisCache(redis, secret="secret-a").set("k", "mine")
+    attacker_view = RedisCache(redis, secret="secret-b")
+    assert attacker_view.get("k", "miss") == "miss"
+
+
+def test_redis_cache_incr_works_when_signed():
+    cache = RedisCache(FakeRedis(), secret="s3cr3t")
+    assert cache.incr("n", 3) == 3
+    assert cache.incr("n", 2) == 5
+
+
+def test_redis_cache_signature_does_not_verify_under_a_different_key():
+    """A signed blob copied from one cache key to another (the attacker still
+    needs Redis write access, but not the secret) must not verify — the
+    signature is bound to the key it was written under, not just the bytes."""
+    redis = FakeRedis()
+    cache = RedisCache(redis, secret="s3cr3t")
+    cache.set("account:1:balance", 1_000_000)
+    stolen_blob = redis.get("endocore:account:1:balance")
+    redis.set("endocore:account:2:balance", stolen_blob)
+    assert cache.get("account:2:balance", "miss") == "miss"

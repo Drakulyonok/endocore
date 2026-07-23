@@ -31,7 +31,7 @@ from endocore.core.websocket import WebSocket, WebSocketDisconnect
 from endocore.core.pubsub import WebSocketManager
 from endocore.core.logging import get_logger
 
-__version__ = "0.8.0b1"
+__version__ = "0.9.0b1"
 
 __all__ = [
     "Application",

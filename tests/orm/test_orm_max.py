@@ -145,3 +145,36 @@ def test_bulk_update(db):
 
 def test_bulk_update_empty(db):
     assert Book.objects.bulk_update([], ["price"]) == 0
+
+
+class Account(Model):
+    name = fields.CharField(max_length=50)
+    role = fields.CharField(max_length=20, choices=[("user", "User"), ("admin", "Admin")])
+
+
+@pytest.fixture()
+def accounts_db():
+    configure(backend="sqlite", database=":memory:")
+    create_all(Account)
+    yield
+    get_connection().close()
+
+
+def test_bulk_update_validates_like_save(accounts_db):
+    """bulk_update() must enforce the same field invariants save() does — an
+    invalid value shouldn't get a free pass just because it went through the
+    bulk path instead of a single save()."""
+    from endocore.orm.validators import ValidationError
+
+    acc = Account.objects.create(name="alice", role="user")
+    acc.role = "not-a-real-choice"
+    with pytest.raises(ValidationError):
+        Account.objects.bulk_update([acc], ["role"])
+    assert Account.objects.get(pk=acc.pk).role == "user"  # unchanged
+
+
+def test_bulk_update_allows_valid_choice(accounts_db):
+    acc = Account.objects.create(name="alice", role="user")
+    acc.role = "admin"
+    assert Account.objects.bulk_update([acc], ["role"]) == 1
+    assert Account.objects.get(pk=acc.pk).role == "admin"

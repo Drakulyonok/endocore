@@ -25,6 +25,7 @@ from endocore.orm.exceptions import (
     FieldError,
     MultipleObjectsReturned,
     ORMError,
+    PoolTimeoutError,
     UnsafeIdentifierError,
 )
 from endocore.orm.expressions import Avg, Count, F, Max, Min, Sum
@@ -76,4 +77,5 @@ __all__ = [
     "FieldError",
     "DoesNotExist",
     "MultipleObjectsReturned",
+    "PoolTimeoutError",
 ]

@@ -10,6 +10,8 @@ from __future__ import annotations
 from typing import Any, Iterator
 from urllib.parse import parse_qs
 
+from endocore.core.exceptions import BadRequest
+
 
 class MultiDict:
     """A read-only mapping where each key may have several values.
@@ -90,7 +92,11 @@ class FormData(MultiDict):
 
 
 def parse_urlencoded(body: bytes) -> FormData:
-    return FormData(parse_qs(body.decode("utf-8"), keep_blank_values=True))
+    try:
+        text = body.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise BadRequest(f"form body is not valid UTF-8: {exc}") from None
+    return FormData(parse_qs(text, keep_blank_values=True))
 
 
 def _parse_disposition(value: str) -> dict[str, str]:
@@ -106,7 +112,10 @@ def _parse_disposition(value: str) -> dict[str, str]:
 def parse_multipart(body: bytes, boundary: str) -> FormData:
     """Parse a ``multipart/form-data`` body into fields and uploaded files."""
     data: dict[str, list[Any]] = {}
-    delimiter = b"--" + boundary.encode("latin-1")
+    try:
+        delimiter = b"--" + boundary.encode("latin-1")
+    except UnicodeEncodeError:
+        raise BadRequest(f"multipart boundary is not latin-1: {boundary!r}") from None
 
     for raw_part in body.split(delimiter):
         part = raw_part.strip(b"\r\n")
@@ -132,7 +141,10 @@ def parse_multipart(body: bytes, boundary: str) -> FormData:
         if "filename" in params:
             value: Any = UploadFile(params["filename"], content_type, content)
         else:
-            value = content.decode("utf-8")
+            try:
+                value = content.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise BadRequest(f"form field {field!r} is not valid UTF-8: {exc}") from None
         data.setdefault(field, []).append(value)
 
     return FormData(data)

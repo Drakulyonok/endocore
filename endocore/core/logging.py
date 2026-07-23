@@ -13,18 +13,17 @@ import logging
 import sys
 from typing import Any
 
-#: Keys whose values are replaced with ``MASK`` before logging.
+#: Substrings (not exact keys) whose presence in a field name masks its value —
+#: catches ``old_password``/``new_password``/``X-Api-Key``/``user_token`` too,
+#: not just a field literally named ``password``.
 SENSITIVE_KEYS: frozenset[str] = frozenset(
     {
         "password",
         "passwd",
         "token",
-        "access_token",
-        "refresh_token",
         "authorization",
         "secret",
         "api_key",
-        "apikey",
         "credit_card",
     }
 )
@@ -79,15 +78,25 @@ def get_logger(name: str = "endocore") -> logging.Logger:
     return logger
 
 
+def _looks_sensitive(key: Any, hints: frozenset[str]) -> bool:
+    if not isinstance(key, str):
+        return False
+    normalized = key.lower().replace("-", "").replace("_", "")
+    return any(hint in normalized for hint in hints)
+
+
 def mask(data: Any, keys: frozenset[str] = SENSITIVE_KEYS) -> Any:
     """Return a copy of ``data`` with sensitive values replaced by ``MASK``.
 
     Recurses through dicts and lists; other values pass through unchanged.
-    Key matching is case-insensitive.
+    A key matches if any hint is a substring of it (case/separator-insensitive:
+    ``old_password``, ``X-Api-Key`` and ``apikey`` all match), not just an exact
+    field name.
     """
+    hints = frozenset(hint.replace("_", "") for hint in keys)
     if isinstance(data, dict):
         return {
-            key: (MASK if isinstance(key, str) and key.lower() in keys else mask(value, keys))
+            key: (MASK if _looks_sensitive(key, hints) else mask(value, keys))
             for key, value in data.items()
         }
     if isinstance(data, list):

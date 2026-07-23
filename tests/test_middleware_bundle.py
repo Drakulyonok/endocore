@@ -11,8 +11,9 @@ from endocore.core.middleware import build_chain
 from endocore.core.request import Request
 from endocore.core.response import Response
 from endocore.middleware import (
-    cors_middleware, csrf_middleware, gzip_middleware, proxy_headers_middleware,
-    rate_limit_middleware, security_headers_middleware, timeout_middleware,
+    cors_middleware, csrf_middleware, gzip_middleware, ip_allowlist_middleware,
+    proxy_headers_middleware, rate_limit_middleware, security_headers_middleware,
+    timeout_middleware,
 )
 from endocore.middleware.logging import logging_middleware
 
@@ -219,6 +220,17 @@ def test_timeout_allows_fast():
     assert status == 200
 
 
+def test_timeout_logs_a_warning_on_expiry(caplog):
+    async def slow(request):
+        await asyncio.sleep(0.2)
+        return Response.json({})
+
+    with caplog.at_level("WARNING"):
+        status, _, _ = run(timeout_middleware(seconds=0.01), endpoint=slow)
+    assert status == 504
+    assert any("timed out" in r.message for r in caplog.records)
+
+
 # -- proxy headers -----------------------------------------------------------
 
 def test_proxy_trusted_applies():
@@ -267,4 +279,57 @@ def test_csrf_allows_with_matching_token():
     token = Signer("secret", salt="endocore.csrf").sign("abc")
     status, _, _ = run(csrf_middleware("secret"), method="POST",
                        headers={"cookie": f"csrftoken={token}", "x-csrf-token": token})
+    assert status == 200
+
+
+# -- IP allowlist --------------------------------------------------------------
+
+def test_ip_allowlist_allows_listed_ip():
+    status, _, _ = run(ip_allowlist_middleware(allowed=["203.0.113.7"]), client=("203.0.113.7", 0))
+    assert status == 200
+
+
+def test_ip_allowlist_blocks_unlisted_ip():
+    status, _, _ = run(ip_allowlist_middleware(allowed=["203.0.113.7"]), client=("203.0.113.8", 0))
+    assert status == 403
+
+
+def test_ip_allowlist_accepts_cidr_range():
+    mw = ip_allowlist_middleware(allowed=["10.0.0.0/24"])
+    assert run(mw, client=("10.0.0.42", 0))[0] == 200
+    assert run(mw, client=("10.0.1.1", 0))[0] == 403
+
+
+def test_ip_allowlist_blocks_missing_client():
+    status, _, _ = run(ip_allowlist_middleware(allowed=["203.0.113.7"]), client=None)
+    assert status == 403
+
+
+def test_ip_allowlist_blocks_unparseable_client_ip():
+    status, _, _ = run(ip_allowlist_middleware(allowed=["203.0.113.7"]), client=("not-an-ip", 0))
+    assert status == 403
+
+
+def test_ip_allowlist_supports_ipv6():
+    mw = ip_allowlist_middleware(allowed=["2001:db8::/32"])
+    assert run(mw, client=("2001:db8::1", 0))[0] == 200
+    assert run(mw, client=("2001:db9::1", 0))[0] == 403
+
+
+def test_ip_allowlist_composes_with_trusted_proxy():
+    """The real (spoofable-only-by-the-proxy) client IP after
+    proxy_headers_middleware resolves X-Forwarded-For is what gets checked."""
+    from endocore.core.middleware import build_chain
+
+    async def endpoint(request):
+        return Response.json({"ok": True})
+
+    def chained(request, call_next):
+        pipeline = build_chain(
+            [proxy_headers_middleware(trusted=["10.0.0.1"]), ip_allowlist_middleware(allowed=["9.9.9.9"])],
+            endpoint,
+        )
+        return pipeline(request)
+
+    status, _, _ = run(chained, headers={"x-forwarded-for": "9.9.9.9"}, client=("10.0.0.1", 0))
     assert status == 200

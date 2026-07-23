@@ -10,6 +10,15 @@ from __future__ import annotations
 import json
 from typing import Any, Awaitable, Callable
 
+#: A raw CR/LF/NUL here would let a header/cookie value forge extra header
+#: lines in the response (CWE-113, "HTTP response splitting").
+_FORBIDDEN_HEADER_CHARS = ("\r", "\n", "\x00")
+
+
+def _check_header_value(name: str, value: str) -> None:
+    if any(ch in value for ch in _FORBIDDEN_HEADER_CHARS):
+        raise ValueError(f"{name} must not contain CR, LF, or NUL characters: {value!r}")
+
 
 class Response:
     """An outbound HTTP response."""
@@ -44,6 +53,12 @@ class Response:
         samesite: str | None = "lax",
     ) -> "Response":
         """Queue a ``Set-Cookie`` header. Defaults are safe (SameSite=Lax)."""
+        _check_header_value("cookie key", key)
+        _check_header_value("cookie value", value)
+        if domain:
+            _check_header_value("cookie domain", domain)
+        if path:
+            _check_header_value("cookie path", path)
         cookie = f"{key}={value}"
         if max_age is not None:
             cookie += f"; Max-Age={int(max_age)}"
@@ -84,12 +99,16 @@ class Response:
 
     async def __call__(self, send: Callable[[dict], Awaitable[None]]) -> None:
         """Emit ``http.response.start`` + ``http.response.body`` to ``send``."""
+        _check_header_value("content-type", self.media_type)
         raw_headers: list[tuple[bytes, bytes]] = [
             (b"content-type", self.media_type.encode("latin-1")),
             (b"content-length", str(len(self.body)).encode("latin-1")),
         ]
         for name, value in self.headers.items():
-            raw_headers.append((name.encode("latin-1"), str(value).encode("latin-1")))
+            value = str(value)
+            _check_header_value("header name", name)
+            _check_header_value("header value", value)
+            raw_headers.append((name.encode("latin-1"), value.encode("latin-1")))
         for cookie in self._cookies:
             raw_headers.append((b"set-cookie", cookie.encode("latin-1")))
 
@@ -152,11 +171,15 @@ class StreamingResponse:
                 yield chunk
 
     async def __call__(self, send: Callable[[dict], Awaitable[None]]) -> None:
+        _check_header_value("content-type", self.media_type)
         raw_headers: list[tuple[bytes, bytes]] = [
             (b"content-type", self.media_type.encode("latin-1")),
         ]
         for name, value in self.headers.items():
-            raw_headers.append((name.encode("latin-1"), str(value).encode("latin-1")))
+            value = str(value)
+            _check_header_value("header name", name)
+            _check_header_value("header value", value)
+            raw_headers.append((name.encode("latin-1"), value.encode("latin-1")))
 
         await send({"type": "http.response.start", "status": self.status, "headers": raw_headers})
         async for chunk in self._aiter():

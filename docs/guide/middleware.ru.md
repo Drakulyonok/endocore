@@ -60,6 +60,7 @@ async def auth_middleware(request: Request, call_next):
 | `security_headers_middleware(...)` | `X-Content-Type-Options`, `X-Frame-Options`, HSTS, … |
 | `gzip_middleware(...)` | gzip-сжатие больших ответов |
 | `proxy_headers_middleware(...)` | учитывать `X-Forwarded-*` от доверенных прокси |
+| `ip_allowlist_middleware(allowed=[...])` | отклонять клиентов вне набора IP/CIDR (403) |
 | `rate_limit_middleware(limit=, window=, redis_client=)` | rate limit с фиксированным окном (429); по умолчанию в памяти на процесс, либо общий лимит на все воркеры через `redis_client=` |
 | `timeout_middleware(seconds=)` | прерывать медленные запросы с 504 |
 | `csrf_middleware(secret)` | CSRF по схеме signed double-submit-cookie |

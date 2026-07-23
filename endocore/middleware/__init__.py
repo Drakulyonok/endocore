@@ -3,6 +3,7 @@
 from endocore.middleware.cors import cors_middleware
 from endocore.middleware.csrf import csrf_middleware
 from endocore.middleware.gzip import gzip_middleware
+from endocore.middleware.ip_allowlist import ip_allowlist_middleware
 from endocore.middleware.logging import logging_middleware
 from endocore.middleware.proxy import proxy_headers_middleware
 from endocore.middleware.ratelimit import rate_limit_middleware
@@ -16,6 +17,7 @@ __all__ = [
     "security_headers_middleware",
     "gzip_middleware",
     "proxy_headers_middleware",
+    "ip_allowlist_middleware",
     "rate_limit_middleware",
     "timeout_middleware",
     "csrf_middleware",

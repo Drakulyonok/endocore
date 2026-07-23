@@ -7,7 +7,7 @@
 
 **Ядро**
 
-- `Application(app_dir=".", *, dev=False, default_version=None, max_body_size=…, openapi=None, openapi_title=…)` — `openapi=None`: `/docs` + `/openapi.json` отдаются только при `dev=True`
+- `Application(app_dir=".", *, dev=False, default_version=None, max_body_size=…, openapi=None, openapi_title=…, ws_allowed_origins=None)` — `openapi=None`: `/docs` + `/openapi.json` отдаются только при `dev=True`; `ws_allowed_origins=None`: same-origin для websocket-хендшейков вне `dev=True`
 - `Request` — `.method .path .path_params .query .headers .cookies`,
   `await .json() .body() .form() .files()`, `.stream()`, `.get_signed_cookie()`
 - `Response(content, status=200, headers=None, media_type=…, background=None)` —
@@ -45,8 +45,8 @@
 
 - `logging_middleware`
 - `cors_middleware(...)`, `security_headers_middleware(...)`, `gzip_middleware(...)`,
-  `proxy_headers_middleware(...)`, `rate_limit_middleware(...)`,
-  `timeout_middleware(...)`, `csrf_middleware(secret)`,
+  `proxy_headers_middleware(...)`, `ip_allowlist_middleware(allowed=[...])`,
+  `rate_limit_middleware(...)`, `timeout_middleware(...)`, `csrf_middleware(secret)`,
   `session_middleware(secret, cookie_name="session", max_age=…, secure=False)`
 
 ## `endocore.orm`

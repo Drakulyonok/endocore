@@ -69,6 +69,21 @@ def test_json_invalid_raises_badrequest():
         asyncio.run(make_request(body=b"{not json").json())
 
 
+# -- found by fuzzing Request.json() with hypothesis: both used to raise an
+# -- unhandled exception instead of the documented BadRequest.
+
+
+def test_json_non_utf8_body_raises_badrequest():
+    with pytest.raises(BadRequest):
+        asyncio.run(make_request(body=b"\x80\x81\xfe").json())
+
+
+def test_json_deeply_nested_raises_badrequest_not_recursionerror():
+    body = b"[" * 20000 + b"]" * 20000
+    with pytest.raises(BadRequest):
+        asyncio.run(make_request(body=body).json())
+
+
 @pytest.mark.parametrize("body,field,expected", [
     (b"name=Ada&age=36", "name", "Ada"),
     (b"name=Ada&age=36", "age", "36"),

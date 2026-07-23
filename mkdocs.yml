@@ -15,8 +15,8 @@ copyright: Copyright &copy; 2026 Drakulyonok — MIT License
 theme:
   name: material
   language: en
+  logo: assets/avatar.svg
   icon:
-    logo: material/file-tree
     repo: fontawesome/brands/github
   favicon: assets/favicon.svg
   palette:

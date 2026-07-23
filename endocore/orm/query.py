@@ -393,7 +393,8 @@ class QuerySet:
             return
         table = backend.quote(field.through_table())
         src, tgt = backend.quote(field.source_column()), backend.quote(field.target_column())
-        sql = f"SELECT {src}, {tgt} FROM {table} WHERE {src} IN ({backend.placeholders(len(pks))})"
+        # identifiers quoted; values are bound placeholders
+        sql = f"SELECT {src}, {tgt} FROM {table} WHERE {src} IN ({backend.placeholders(len(pks))})"  # nosec B608
         groups: dict = {}
         targets: set = set()
         for source_id, target_id in self._connection().execute(sql, pks).fetchall():
@@ -475,7 +476,8 @@ class QuerySet:
                 raise FieldError(f"annotate: {target!r} is not a field or relation of {self.model.__name__}")
 
         select_sql = ", ".join(base_cols + agg_selects)
-        sql = f"SELECT {select_sql} FROM {base}"
+        # identifiers/aggregate SQL quoted; no raw values
+        sql = f"SELECT {select_sql} FROM {base}"  # nosec B608
         if joins:
             sql += " " + " ".join(joins)
         where_sql, params = self._compiler()._where_clause(meta, self._wheres)
@@ -501,7 +503,12 @@ class QuerySet:
     # -- bulk update ------------------------------------------------------
 
     def bulk_update(self, objects: list, fields: list[str]) -> int:
-        """Write the given fields of each instance back to the DB (one UPDATE each)."""
+        """Write the given fields of each instance back to the DB (one UPDATE each).
+
+        Validates each updated field the same way ``save()`` does (required-ness,
+        ``choices``, custom validators) — bulk writes don't get a pass on the
+        invariants a single ``save()`` would have enforced.
+        """
         if not objects:
             return 0
         backend = self._backend
@@ -511,6 +518,8 @@ class QuerySet:
         count = 0
         with conn.atomic():
             for obj in objects:
+                for f in field_objs:
+                    f.validate(obj._value_of(f))
                 assignments = {f.column: f.to_db(obj._value_of(f), backend) for f in field_objs}
                 sql, params = self._compiler().update(meta, assignments, [Q(pk=obj.pk)])
                 conn.execute(sql, params, write=True)
@@ -681,14 +690,35 @@ class QuerySet:
         try:
             return self.get(**kwargs), False
         except self.model.DoesNotExist:
-            return self.create(**{**kwargs, **(defaults or {})}), True
+            try:
+                return self.create(**{**kwargs, **(defaults or {})}), True
+            except Exception as exc:
+                if type(exc).__name__ != "IntegrityError":
+                    raise
+                # lost the race: a concurrent create() beat this one to the same row
+                try:
+                    return self.get(**kwargs), False
+                except self.model.DoesNotExist:
+                    raise exc from None
 
     def update_or_create(self, defaults: dict | None = None, **kwargs):
         defaults = defaults or {}
         try:
             obj = self.get(**kwargs)
         except self.model.DoesNotExist:
-            return self.create(**{**kwargs, **defaults}), True
+            try:
+                return self.create(**{**kwargs, **defaults}), True
+            except Exception as exc:
+                if type(exc).__name__ != "IntegrityError":
+                    raise
+                try:
+                    obj = self.get(**kwargs)
+                except self.model.DoesNotExist:
+                    raise exc from None
+                for name, value in defaults.items():
+                    setattr(obj, name, value)
+                obj.save()
+                return obj, False
         for name, value in defaults.items():
             setattr(obj, name, value)
         obj.save()

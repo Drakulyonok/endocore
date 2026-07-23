@@ -14,7 +14,10 @@ Each request produces a line like:
 
 - method, path, status, duration, and a **request id**;
 - the request payload with **sensitive keys masked** (`password`, `token`,
-  `authorization`, `secret`, `api_key`, …) *before* anything is written;
+  `authorization`, `secret`, `api_key`, …) *before* anything is written —
+  matching is by substring, case/separator-insensitive, so `old_password`,
+  `X-Api-Key`, and `refresh_token` are masked too, not just an exact field
+  name;
 - on error, the full traceback.
 
 ## Why masking is at the logger layer

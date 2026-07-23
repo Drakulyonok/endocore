@@ -2,6 +2,96 @@
 
 All notable changes to EndoCore are documented here.
 
+## [0.9.0b1] — 2026-07-24 — security audit: response-splitting, cache RCE, CSWSH, ORM races, and a dev-mode-by-default footgun
+
+**1756 tests.** This release is the result of a deliberately adversarial pass
+over the whole framework — not just reading code, but reproducing each
+exploit before the fix and again after, and in one case catching a regression
+in the fix itself before it shipped. `bandit` and `pip-audit` now run in CI on
+every push, and the request parsers (multipart, JSON, query string) were
+property-fuzzed with `hypothesis`.
+
+### Security
+
+- **HTTP response splitting (CWE-113)** — `Response` and `StreamingResponse`
+  now reject (`ValueError`) any header name, header value, cookie component,
+  or `media_type` containing a raw CR, LF, or NUL, enforced unconditionally at
+  the point the response is built rather than left to the ASGI server to catch.
+- **Pickle RCE in the Redis cache (CWE-502)** — `RedisCache.get()` called
+  `pickle.loads()` on whatever bytes Redis returned, unauthenticated; anything
+  that could write that key got code execution on the next read. Pass
+  `secret=` to `CacheExtension`/`configure_cache("redis", ...)` to HMAC-sign
+  every value, bound to its own cache key so a signed blob can't be copied to
+  a different key and still verify. Without `secret=`, behavior is unchanged
+  but now raises a warning.
+- **Cross-site WebSocket hijacking** — the handshake had no `Origin` check at
+  all, so a page on any other site could open a websocket to your app and
+  ride along on a cookie-based session. Same-origin is now enforced by
+  default outside `dev=True` (relaxed automatically in dev, since a local
+  frontend on another port is a different origin); configure
+  `Application(ws_allowed_origins=[...])` explicitly for a real cross-origin
+  frontend.
+- **`create_app()` defaulted to `dev=True`** — the ASGI factory that
+  `uvicorn endocore.asgi:create_app --factory` (the documented production
+  entry point) uses defaulted dev mode **on** when `ENDOCORE_DEV` wasn't set
+  at all, silently exposing `/docs`, the dev file watcher, and the relaxed
+  websocket origin check. `Application` itself already defaulted to
+  `dev=False`; the factory now matches it. `endo dev` is unaffected — it
+  already set the env var explicitly either way.
+- **Two ORM race conditions leaked driver exceptions under concurrency** —
+  `get_or_create()`/`update_or_create()` and `ManyRelatedManager.add()` (M2M)
+  could raise an uncaught `IntegrityError` when two callers raced the same
+  not-yet-existing row/relation. Both now catch the race, verify the row/pair
+  actually exists now, and return the existing result instead of raising —
+  verified by reproducing the race with real concurrent threads before and
+  after the fix.
+- **`bulk_update()` skipped field validation** — unlike `save()`, `.update()`,
+  and `bulk_create()`, it wrote values straight to SQL with no `choices`,
+  required-ness, or custom-validator check. A `role` field restricted to
+  `choices=[...]` could be set to an arbitrary string through the bulk path.
+- **`Model.__repr__` printed secrets** — a `password_hash`-shaped column could
+  end up readable in a stray `print(user)`, a traceback, or a debugger.
+  Masked by field name, the same way `Settings.__repr__` already worked.
+- **Log masking only matched exact key names** — `old_password`,
+  `X-Api-Key`, and `refresh_token` all bypassed masking because only a field
+  literally named `password`/`api_key`/... was ever caught. Matching is now
+  by substring, case/separator-insensitive.
+- **CSRF token comparison wasn't constant-time** — `cookie != header` is now
+  `hmac.compare_digest`, matching every other secret comparison in the codebase.
+- **Connection pool exhaustion hung forever** — `Connection._acquire()` waited
+  on an unbounded `threading.Condition`; a genuinely exhausted or stuck pool
+  blocked every caller (and the worker thread behind it) indefinitely with no
+  diagnostic. Added `pool_timeout` (default 30s) → `PoolTimeoutError` instead.
+- **Background task (`Response(..., background=...)`) failures vanished** —
+  an exception there is now logged (with the same request id as the original
+  request) instead of propagating silently past an already-sent response.
+- **Swagger UI supply-chain risk** — `/docs` loaded JS/CSS from an unversioned
+  `unpkg.com` URL with no integrity check. Pinned to a specific
+  `swagger-ui-dist` version with real, computed Subresource Integrity hashes.
+- **Malformed request bodies crashed instead of failing clean** — a non-UTF-8
+  multipart field, a non-Latin-1 multipart boundary, a non-UTF-8
+  `application/x-www-form-urlencoded` body, and a pathologically deep JSON
+  array all raised an unhandled `UnicodeDecodeError`/`UnicodeEncodeError`/
+  `RecursionError` instead of the framework's own `BadRequest` convention
+  (none of these leaked info or crashed the process — `logging_middleware`'s
+  top-level handler already contained them — but all four now resolve to a
+  clean 400, found by fuzzing the parsers with `hypothesis`).
+- **`cryptography` CVE** (GHSA-537c-gmf6-5ccf, vulnerable statically-linked
+  OpenSSL) — minimum version raised from `>=41` to `>=48.0.1`.
+
+### Added
+- **`ip_allowlist_middleware(allowed=[...])`** — restrict a backend to known
+  callers by source IP/CIDR (v4 and v6) rather than trusting a spoofable
+  header; composes with `proxy_headers_middleware` for real client IPs behind
+  a reverse proxy.
+- **CI `security` job** — `bandit` (static analysis) and `pip-audit`
+  (dependency CVEs) run on every push/PR alongside the test matrix.
+
+### Fixed
+- **`ManyRelatedManager.set()` wasn't atomic** — `clear()` and `add()` ran as
+  separate operations; a failure in `add()` left the relation cleared instead
+  of rolled back. Now one transaction.
+
 ## [0.8.0b1] — 2026-07-23 — data migrations, distributed rate limit, WebSocket fan-out
 
 **1696 tests (plus PostgreSQL pool tests behind ENDOCORE_TEST_POSTGRES_DSN and

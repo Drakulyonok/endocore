@@ -14,15 +14,19 @@
 from __future__ import annotations
 
 import functools
+import hashlib
+import hmac
 import inspect
-import pickle
+import pickle  # nosec B403
 import threading
 import time
+import warnings
 from typing import Any, Callable
 
 from endocore.core.exceptions import ConfigurationError
 
 _MISS = object()
+_SIG_BYTES = 32  # HMAC-SHA256 digest size
 
 
 class InMemoryCache:
@@ -66,25 +70,71 @@ class InMemoryCache:
 
 
 class RedisCache:
-    """Cache backed by a Redis client (values pickled). Client injected lazily."""
+    """Cache backed by a Redis client (values pickled). Client injected lazily.
 
-    def __init__(self, client, *, prefix: str = "endocore:") -> None:
+    ``pickle.loads`` on whatever Redis returns is only as safe as Redis itself
+    (CWE-502). Pass ``secret=`` to HMAC-sign each blob and verify it on read;
+    a bad or missing signature is treated as a cache miss. Without ``secret=``,
+    blobs stay unsigned and a warning is raised once per instance.
+    """
+
+    def __init__(self, client, *, prefix: str = "endocore:", secret: str | bytes | None = None) -> None:
         self.client = client
         self.prefix = prefix
+        self._key: bytes | None = None
+        if secret is not None:
+            secret_bytes = secret.encode("utf-8") if isinstance(secret, str) else secret
+            self._key = hashlib.sha256(b"endocore.cache:" + secret_bytes).digest()
+        else:
+            warnings.warn(
+                "RedisCache configured without secret=...: cached values are "
+                "unauthenticated pickle blobs. If this Redis instance is ever "
+                "exposed, shared, or reachable by a compromised neighbor, "
+                "pickle.loads() on injected bytes is remote code execution. "
+                "Pass configure_cache('redis', ..., secret=...) to sign/verify "
+                "blobs instead.",
+                stacklevel=2,
+            )
 
     def _k(self, key: str) -> str:
         return self.prefix + key
 
+    def _pack(self, redis_key: str, value: Any) -> bytes:
+        data = pickle.dumps(value)
+        if self._key is None:
+            return data
+        # bind the key into the signature so a blob can't be copied to another key
+        mac = hmac.new(self._key, redis_key.encode("utf-8") + b"\x00" + data, hashlib.sha256)
+        return mac.digest() + data
+
+    def _unpack(self, redis_key: str, raw: bytes) -> Any:
+        if self._key is None:
+            # unsigned path; a warning is raised in __init__ for this
+            return pickle.loads(raw)  # nosec B301
+        signature, data = raw[:_SIG_BYTES], raw[_SIG_BYTES:]
+        expected = hmac.new(
+            self._key, redis_key.encode("utf-8") + b"\x00" + data, hashlib.sha256
+        ).digest()
+        if not hmac.compare_digest(signature, expected):
+            return _MISS  # tampered, foreign, or copied from another key — fail closed
+        # signature already verified above
+        return pickle.loads(data)  # nosec B301
+
     def get(self, key: str, default: Any = None) -> Any:
-        raw = self.client.get(self._k(key))
-        return default if raw is None else pickle.loads(raw)
+        redis_key = self._k(key)
+        raw = self.client.get(redis_key)
+        if raw is None:
+            return default
+        value = self._unpack(redis_key, raw)
+        return default if value is _MISS else value
 
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
-        data = pickle.dumps(value)
+        redis_key = self._k(key)
+        data = self._pack(redis_key, value)
         if ttl:
-            self.client.setex(self._k(key), ttl, data)
+            self.client.setex(redis_key, ttl, data)
         else:
-            self.client.set(self._k(key), data)
+            self.client.set(redis_key, data)
 
     def delete(self, key: str) -> None:
         self.client.delete(self._k(key))
@@ -115,8 +165,10 @@ def configure_cache(backend: str = "memory", *, alias: str = "default", **params
         if client is None:
             from endocore.extensions.redis import redis_client  # lazy
 
-            client = redis_client(**{k: v for k, v in params.items() if k != "prefix"})
-        cache = RedisCache(client, prefix=params.get("prefix", "endocore:"))
+            client = redis_client(**{
+                k: v for k, v in params.items() if k not in ("prefix", "secret")
+            })
+        cache = RedisCache(client, prefix=params.get("prefix", "endocore:"), secret=params.get("secret"))
     else:
         raise ConfigurationError(f"unknown cache backend {backend!r} (use 'memory' or 'redis')")
     _caches[alias] = cache

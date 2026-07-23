@@ -6,6 +6,7 @@ PATCH/DELETE) the ``X-CSRF-Token`` header must match the cookie and verify.
 
 from __future__ import annotations
 
+import hmac
 from uuid import uuid4
 
 from endocore.core.exceptions import Forbidden
@@ -31,7 +32,7 @@ def csrf_middleware(secret: str, *, cookie_name: str = "csrftoken", header_name:
 
         cookie = request.cookies.get(cookie_name)
         header = request.headers.get(header_name)
-        if not cookie or not header or cookie != header:
+        if not cookie or not header or not hmac.compare_digest(cookie, header):
             raise Forbidden("CSRF token missing or mismatched")
         try:
             signer.unsign(cookie)

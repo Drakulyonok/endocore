@@ -1,4 +1,12 @@
-"""gzip response compression middleware."""
+"""gzip response compression middleware.
+
+Compressing a response that mixes a secret (a CSRF token, a session id) with
+attacker-influenced reflected input (an echoed query param) is the BREACH
+compression-oracle pattern — response size leaks information about the
+secret across repeated requests. Not something this middleware can detect or
+fix generically; keep secrets and reflected input out of the same response,
+or don't compress pages that embed one.
+"""
 
 from __future__ import annotations
 

@@ -29,3 +29,7 @@ class DoesNotExist(ORMError):
 
 class MultipleObjectsReturned(ORMError):
     """``get()`` matched more than one row."""
+
+
+class PoolTimeoutError(ORMError):
+    """Waited too long for a free pooled connection (the pool is exhausted)."""

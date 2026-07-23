@@ -12,6 +12,7 @@ from endocore.core.datastructures import (
     parse_multipart,
     parse_urlencoded,
 )
+from endocore.core.exceptions import BadRequest
 
 
 @pytest.mark.parametrize("i", list(range(40)))
@@ -100,3 +101,27 @@ def test_multipart_mixed_fields_and_files():
     assert form.get("a") == "1"
     assert form.files["f"].read() == b"DATA"
     assert len(form.files) == 1
+
+
+# -- malformed encodings raise a clean 400, not an unhandled Unicode error ----
+# (found by fuzzing parse_multipart/parse_urlencoded with hypothesis)
+
+
+def test_multipart_non_utf8_text_field_raises_bad_request():
+    boundary = "B"
+    body = (
+        b'--B\r\nContent-Disposition: form-data; name="f"\r\n\r\n'
+        b"\x80\x81\xfe\r\n--B--\r\n"
+    )
+    with pytest.raises(BadRequest):
+        parse_multipart(body, boundary)
+
+
+def test_multipart_non_latin1_boundary_raises_bad_request():
+    with pytest.raises(BadRequest):
+        parse_multipart(b"--x\r\n\r\n--x--\r\n", "Ā")
+
+
+def test_urlencoded_non_utf8_body_raises_bad_request():
+    with pytest.raises(BadRequest):
+        parse_urlencoded(b"name=\x80\x81\xfe")

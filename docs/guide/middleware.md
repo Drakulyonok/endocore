@@ -61,6 +61,7 @@ Import from `endocore.middleware`:
 | `security_headers_middleware(...)` | `X-Content-Type-Options`, `X-Frame-Options`, HSTS, … |
 | `gzip_middleware(...)` | gzip compression for large responses |
 | `proxy_headers_middleware(...)` | honour `X-Forwarded-*` from trusted proxies |
+| `ip_allowlist_middleware(allowed=[...])` | reject clients outside a set of IPs/CIDR ranges (403) |
 | `rate_limit_middleware(limit=, window=, redis_client=)` | fixed-window rate limit (429); in-memory per-process by default, or a shared limit across every worker with `redis_client=` |
 | `timeout_middleware(seconds=)` | abort slow requests with 504 |
 | `csrf_middleware(secret)` | signed double-submit-cookie CSRF |
