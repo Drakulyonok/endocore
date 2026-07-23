@@ -64,6 +64,13 @@ class QuerySet:
         self._defer: tuple[str, ...] | None = None
         self._annotations: dict = {}
         self._is_empty = False
+        #: True only for the untouched QuerySet a reverse-FK descriptor hands
+        #: back with a prefetched ``_result_cache`` already populated. Lets
+        #: ``.all()`` reuse that cache instead of cloning it away, while any
+        #: further chaining (``.filter()``, ``.exclude()``, ...) still clones
+        #: normally and re-queries — prefetch only ever short-circuits a bare
+        #: ``.all()``, matching what ``author.books.all()`` actually does.
+        self._prefetch_virgin = False
 
     # -- infra ------------------------------------------------------------
 
@@ -163,6 +170,8 @@ class QuerySet:
         return clone
 
     def all(self) -> "QuerySet":
+        if self._prefetch_virgin and self._result_cache is not None:
+            return self
         return self._clone()
 
     def none(self) -> "QuerySet":
@@ -369,6 +378,10 @@ class QuerySet:
             if field is not None and isinstance(field, ForeignKey):
                 self._prefetch_fk(field, instances)
                 continue
+            reverse = self._meta.reverse_relations.get(name)
+            if reverse is not None:
+                self._prefetch_reverse_fk(reverse, name, instances)
+                continue
             raise FieldError(f"prefetch_related: {name!r} is not a relation on {self.model.__name__}")
 
     def _prefetch_m2m(self, field, instances: list) -> None:
@@ -397,6 +410,30 @@ class QuerySet:
         objmap = {o.pk: o for o in field.to.objects.filter(pk__in=list(ids))} if ids else {}
         for inst in instances:
             setattr(inst, f"_{field.name}_cache", objmap.get(getattr(inst, field.id_attr_name)))
+
+    def _prefetch_reverse_fk(self, reverse: tuple, name: str, instances: list) -> None:
+        """Batch-load the many side of a ``ForeignKey`` for its reverse
+        accessor (``author.books`` where ``related_name="books"``).
+
+        One query total (``fk__in=[pks]``), grouped by fk id in Python — the
+        same shape as ``_prefetch_fk``, just walking the relation backwards.
+        Each instance gets a QuerySet whose ``_result_cache`` is pre-filled,
+        so ``author.books.all()`` (and plain iteration) skip the DB; further
+        chaining (``.filter(...)``) still clones and queries fresh, same as
+        an ordinary QuerySet.
+        """
+        source_model, fk = reverse
+        pks = [i.pk for i in instances if i.pk is not None]
+        related = list(source_model.objects.filter(**{f"{fk.name}__in": pks})) if pks else []
+        groups: dict = {}
+        for obj in related:
+            groups.setdefault(getattr(obj, fk.id_attr_name), []).append(obj)
+        cache_attr = f"_prefetch_cache_{name}"
+        for inst in instances:
+            qs = source_model.objects.filter(**{fk.name: inst})
+            qs._result_cache = groups.get(inst.pk, [])
+            qs._prefetch_virgin = True
+            inst.__dict__[cache_attr] = qs
 
     # -- annotate (aggregate over a relation/field, GROUP BY base) --------
 

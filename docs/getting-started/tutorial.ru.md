@@ -10,7 +10,7 @@
 ## 0. Подготовка
 
 ```bash
-end new blog && cd blog
+endo new blog && cd blog
 pip install "endocore[pydantic]"
 ```
 
@@ -48,7 +48,7 @@ create_all(Author, Post, Comment)
 
 !!! tip "Миграции вместо `create_all`"
     `create_all` отлично подходит для прототипов. В реальном проекте используйте
-    [миграции](../orm/migrations.md): `end makemigrations && end migrate`.
+    [миграции](../orm/migrations.md): `endo makemigrations && endo migrate`.
 
 ## 2. Сервисный слой
 
@@ -176,7 +176,7 @@ async def handler(request, settings = Depends(get_settings)) -> Response:
 Скопируйте версию целиком:
 
 ```bash
-end version create 2        # Api/v1 -> Api/v2 (endpoint'ы + локальные сервисы)
+endo version create 2        # Api/v1 -> Api/v2 (endpoint'ы + локальные сервисы)
 ```
 
 Теперь свободно редактируйте `Api/v2/Post/Get.py`. `v1` продолжает вести себя
@@ -186,13 +186,13 @@ end version create 2        # Api/v1 -> Api/v2 (endpoint'ы + локальные
 ## 8. Миграции
 
 ```bash
-end makemigrations initial
-end migrate
+endo makemigrations initial
+endo migrate
 # позже, после изменения моделей:
-end makemigrations add_views
-end migrate
-end showmigrations          # [x] применена  /  [ ] ожидает
-end rollback                # откатить последнюю
+endo makemigrations add_views
+endo migrate
+endo showmigrations          # [x] применена  /  [ ] ожидает
+endo rollback                # откатить последнюю
 ```
 
 ## 9. Тесты
@@ -217,13 +217,13 @@ def test_create_post():
 Запуск:
 
 ```bash
-end test -q
+endo test -q
 ```
 
 ## 10. Запуск
 
 ```bash
-end dev                     # dev-режим с перезагрузкой в процессе
+endo dev                     # dev-режим с перезагрузкой в процессе
 # продакшен:
 uvicorn endocore.asgi:create_app --factory --host 0.0.0.0 --port 8000
 ```

@@ -1,6 +1,6 @@
 """Local (versioned) service: role creation business logic.
 
-Lives under Api/v1/.../Services/ so it is copied when `end version create` makes
+Lives under Api/v1/.../Services/ so it is copied when `endo version create` makes
 a new version — v2 can diverge without touching v1.
 """
 

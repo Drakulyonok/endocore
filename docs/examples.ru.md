@@ -9,7 +9,7 @@
 ```bash
 git clone https://github.com/Drakulyonok/endocore
 cd endocore/example
-end dev            # http://127.0.0.1:8000
+endo dev            # http://127.0.0.1:8000
 ```
 
 Он демонстрирует: версионированные маршруты, динамические сегменты, локальные и
@@ -39,7 +39,7 @@ blog/
     posts.py               # бизнес-логика
   hooks.py                 # открытие/закрытие ресурсов
   providers.py             # DI-провайдеры (settings, db)
-  migrations/              # end makemigrations / migrate
+  migrations/              # endo makemigrations / migrate
   Tests/
     test_posts.py
 ```

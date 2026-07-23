@@ -1,4 +1,4 @@
-"""``end routes`` — print the resolved route table (method + URL + file)."""
+"""``endo routes`` — print the resolved route table (method + URL + file)."""
 
 from __future__ import annotations
 

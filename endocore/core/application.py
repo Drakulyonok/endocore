@@ -128,7 +128,7 @@ class Application:
         if not (self.app_dir / "Middleware" / "__init__.py").is_file():
             return []
         try:
-            # Drop a cached copy so `end dev` reload picks up edits.
+            # Drop a cached copy so `endo dev` reload picks up edits.
             sys.modules.pop("Middleware", None)
             module = importlib.import_module("Middleware")
             middlewares = list(getattr(module, "middlewares", []))

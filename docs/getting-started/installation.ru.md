@@ -11,7 +11,7 @@
 pip install endocore
 ```
 
-Это даёт полный фреймворк, CLI (`end`) и ORM для **SQLite** (поддержка SQLite
+Это даёт полный фреймворк, CLI (`endo`) и ORM для **SQLite** (поддержка SQLite
 построена на стандартной библиотеке — ставить ничего не нужно).
 
 ??? tip "Новичок в Python? Используйте виртуальное окружение"
@@ -50,11 +50,11 @@ pip install "endocore[postgres,files,redis,celery,pydantic,watch]"
 ## Проверка установки
 
 ```bash
-end --version         # EndoCore 0.7.0b2
-end doctor            # окружение, зависимости, проверки проекта
+endo --version         # EndoCore 0.7.0b2
+endo doctor            # окружение, зависимости, проверки проекта
 ```
 
-`end doctor` печатает версию Python, наличие опциональных зависимостей и
+`endo doctor` печатает версию Python, наличие опциональных зависимостей и
 похоже ли текущая директория на проект EndoCore.
 
 ## Из исходников (разработка)
@@ -69,7 +69,7 @@ pytest -q             # 1600+ тестов
 
 ## Про Windows
 
-**PowerShell:** `end` — зарезервированное слово, `end dev` там не распарсится.
+**PowerShell:** `endo` — зарезервированное слово, `endo dev` там не распарсится.
 Используйте идентичный алиас `endo`:
 
 ```powershell
@@ -82,7 +82,7 @@ endo dev
 
 ```bash
 py -3 -m pip install endocore
-py -3 -m endocore --version     # то же, что `end --version`
+py -3 -m endocore --version     # то же, что `endo --version`
 ```
 
 Дальше — [Быстрый старт](quickstart.md).

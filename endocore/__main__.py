@@ -1,4 +1,4 @@
-"""Allow `python -m endocore ...` as an alias for the `end` CLI."""
+"""Allow `python -m endocore ...` as an alias for the `endo` CLI."""
 
 from endocore.cli.main import main
 

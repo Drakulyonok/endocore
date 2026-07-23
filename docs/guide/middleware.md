@@ -61,7 +61,7 @@ Import from `endocore.middleware`:
 | `security_headers_middleware(...)` | `X-Content-Type-Options`, `X-Frame-Options`, HSTS, … |
 | `gzip_middleware(...)` | gzip compression for large responses |
 | `proxy_headers_middleware(...)` | honour `X-Forwarded-*` from trusted proxies |
-| `rate_limit_middleware(limit=, window=)` | in-memory fixed-window rate limit (429) |
+| `rate_limit_middleware(limit=, window=, redis_client=)` | fixed-window rate limit (429); in-memory per-process by default, or a shared limit across every worker with `redis_client=` |
 | `timeout_middleware(seconds=)` | abort slow requests with 504 |
 | `csrf_middleware(secret)` | signed double-submit-cookie CSRF |
 
@@ -77,6 +77,27 @@ middlewares = [
     csrf_middleware(secret="change-me"),
 ]
 ```
+
+### Sharing the rate limit across workers
+
+The plain in-memory limiter counts **per process** — run 4 Gunicorn workers
+and each enforces its own independent 100-req/min bucket, so the *real*
+limit for a client is 400/min, not 100. Pass a Redis client to share one
+counter (Redis `INCR` is atomic, so concurrent workers can't race each other
+into under-counting):
+
+```python
+from endocore.extensions import redis_client
+from endocore.middleware import rate_limit_middleware
+
+middlewares = [
+    rate_limit_middleware(limit=100, window=60, redis_client=redis_client(url="redis://localhost:6379/0")),
+]
+```
+
+The Redis client's calls are synchronous (redis-py), so they're offloaded to
+a worker thread automatically — a slow or briefly-unreachable Redis can't
+stall the event loop for other in-flight requests.
 
 ## The always-on logging layer
 

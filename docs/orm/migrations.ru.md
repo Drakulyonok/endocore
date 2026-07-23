@@ -10,13 +10,13 @@
 ## Рабочий процесс
 
 ```bash
-end makemigrations initial     # записать migrations/0001_initial.json из моделей
-end migrate                    # применить ожидающие миграции
-end showmigrations             # [x] применена  /  [ ] ожидает
-end sqlmigrate 0001            # напечатать forward-SQL миграции
-end migrate 0002               # применить до 0002 включительно
-end rollback                   # отменить самую свежую миграцию
-end rollback --steps 2         # отменить две последние
+endo makemigrations initial     # записать migrations/0001_initial.json из моделей
+endo migrate                    # применить ожидающие миграции
+endo showmigrations             # [x] применена  /  [ ] ожидает
+endo sqlmigrate 0001            # напечатать forward-SQL миграции
+endo migrate 0002               # применить до 0002 включительно
+endo rollback                   # отменить самую свежую миграцию
+endo rollback --steps 2         # отменить две последние
 ```
 
 Миграции записывают себя в таблицу `endocore_migrations`, поэтому `migrate`
@@ -37,11 +37,45 @@ end rollback --steps 2         # отменить две последние
 переименования **явные**:
 
 ```bash
-end makemigrations rename_fullname --rename user.fullname=name
+endo makemigrations rename_fullname --rename user.fullname=name
 ```
 
 Это порождает `ALTER TABLE "user" RENAME COLUMN "fullname" TO "name"` (и
 обратную операцию), работает на SQLite (≥ 3.25) и PostgreSQL и сохраняет данные.
+
+## Миграции данных
+
+Миграции схемы вычисляются автоматически диффом; преобразования данных
+(забэкфиллить новую колонку, изменить форму JSON-блоба, слить строки) — это не
+то, что можно «сравнить», поэтому вместо одноразового скрипта пишете Python-файл:
+
+```bash
+endo makemigrations backfill_slugs --python   # создаёт migrations/0003_backfill_slugs.py
+```
+
+```python
+# migrations/0003_backfill_slugs.py
+def forward(conn) -> None:
+    from Models.post import Post
+    for post in Post.objects.all():
+        post.slug = post.title.lower().replace(" ", "-")
+        post.save()
+
+
+def reverse(conn) -> None:
+    raise NotImplementedError("this data migration cannot be reversed")
+```
+
+Она нумеруется в **той же** истории, что и миграции схемы — `migrate`,
+`rollback` и `showmigrations` видят её и применяют по порядку, вместо скрипта,
+который нужно не забыть запустить в нужный момент относительно схемной
+миграции, от которой он зависит. `forward`/`reverse` выполняются в собственном
+блоке `atomic()`, поэтому брошенное исключение откатывает уже сделанные
+записи, а миграция не отмечается как применённая. Импортируйте и используйте
+свои модели напрямую — к моменту выполнения миграции приложение уже
+сконфигурировано. Не определяйте `reverse` (или бросайте исключение, как в
+сгенерированной заглушке), если миграцию нельзя отменить — тогда `rollback`
+явно упадёт с ошибкой вместо молчаливого бездействия.
 
 ## Программный API
 
@@ -50,6 +84,7 @@ from endocore.orm import Migrator, get_models
 
 m = Migrator(get_models())              # или Migrator([Post, Author])
 m.makemigrations("initial")
+m.makedatamigration("backfill_slugs")   # создаёт пустую заглушку forward()/reverse()
 m.migrate()
 m.showmigrations()                      # [("0001_initial", True), ...]
 m.rollback(steps=1)
@@ -57,8 +92,8 @@ m.rollback(steps=1)
 
 ## Границы (бета)
 
-- Миграции данных и сложные преобразования колонок вне рамок — для них пишите
-  одноразовый скрипт или ручную SQL-миграцию.
+- Преобразования колонок сложнее пересборки (например, разбить одну колонку на
+  две) всё ещё требуют миграции данных в паре со схемной.
 - Миграции генерируются для настроенного **диалекта** вашего проекта; при смене
   бэкенда перегенерируйте их.
 

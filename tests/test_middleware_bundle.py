@@ -147,6 +147,62 @@ def test_rate_limit_per_ip():
     assert run(mw, client=("1.1.1.1", 0))[0] == 429
 
 
+# -- rate limit: Redis-backed --------------------------------------------
+
+class FakeRedis:
+    """Enough of redis-py's sync API for the rate limiter: INCR/EXPIRE/TTL,
+    single-threaded so it can't itself hide the concurrency bugs it's meant
+    to catch, but that's exactly why there's also a real-server test below."""
+
+    def __init__(self) -> None:
+        self.counts: dict[str, int] = {}
+        self.expiry: dict[str, int] = {}
+
+    def incr(self, key: str) -> int:
+        self.counts[key] = self.counts.get(key, 0) + 1
+        return self.counts[key]
+
+    def expire(self, key: str, seconds: int) -> None:
+        self.expiry[key] = seconds
+
+    def ttl(self, key: str) -> int:
+        return self.expiry.get(key, -1)
+
+
+def test_rate_limit_redis_blocks_after_limit():
+    fake = FakeRedis()
+    mw = rate_limit_middleware(limit=3, window=60, redis_client=fake)
+    for _ in range(3):
+        status, _, _ = run(mw, client=("9.9.9.9", 0))
+        assert status == 200
+    status, headers, _ = run(mw, client=("9.9.9.9", 0))
+    assert status == 429
+    # fake.expire was called on the first hit, so ttl() has a real value
+    assert fake.ttl("endocore:ratelimit:9.9.9.9") == 60
+
+
+def test_rate_limit_redis_shares_the_counter_across_middleware_instances():
+    """The whole point of the Redis backend: two independent middleware
+    instances (standing in for two separate worker processes) enforce ONE
+    shared limit instead of one limit each."""
+    fake = FakeRedis()
+    worker_a = rate_limit_middleware(limit=2, window=60, redis_client=fake)
+    worker_b = rate_limit_middleware(limit=2, window=60, redis_client=fake)
+
+    assert run(worker_a, client=("5.5.5.5", 0))[0] == 200  # count -> 1
+    assert run(worker_b, client=("5.5.5.5", 0))[0] == 200  # count -> 2 (shared!)
+    assert run(worker_a, client=("5.5.5.5", 0))[0] == 429  # count -> 3, over limit
+
+
+def test_rate_limit_redis_per_key_prefix_isolation():
+    fake = FakeRedis()
+    mw_a = rate_limit_middleware(limit=1, window=60, redis_client=fake, key_prefix="app-a:")
+    mw_b = rate_limit_middleware(limit=1, window=60, redis_client=fake, key_prefix="app-b:")
+    assert run(mw_a, client=("1.1.1.1", 0))[0] == 200
+    assert run(mw_b, client=("1.1.1.1", 0))[0] == 200  # different prefix, own bucket
+    assert run(mw_a, client=("1.1.1.1", 0))[0] == 429
+
+
 # -- timeout -----------------------------------------------------------------
 
 def test_timeout_triggers():

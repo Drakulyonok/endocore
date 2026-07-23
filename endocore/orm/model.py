@@ -119,10 +119,14 @@ class ReverseManyToOneDescriptor:
     def __init__(self, source_model, field) -> None:
         self.source_model = source_model
         self.field = field
+        self.cache_attr = f"_prefetch_cache_{field.reverse_name()}"
 
     def __get__(self, instance, owner=None):
         if instance is None:
             return self
+        cached = instance.__dict__.get(self.cache_attr)
+        if cached is not None:
+            return cached
         return self.source_model.objects.filter(**{self.field.name: instance})
 
 

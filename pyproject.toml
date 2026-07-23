@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "endocore"
-version = "0.7.0b2"
+version = "0.8.0b1"
 description = "File-based ASGI backend framework (folder tree = API) with an async-capable secure ORM, DI, WebSockets + pub/sub, cache, OpenAPI, migrations, and service integrations."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -46,9 +46,8 @@ dev = ["watchfiles>=0.21", "pytest>=8", "psycopg[binary]>=3.1", "cryptography>=4
 
 [project.scripts]
 # `end` is a reserved keyword in PowerShell (begin/process/end blocks), so a
-# bare `end dev` is a parser error there. `endo` is the alias that works in
-# every shell; `end` stays for bash/cmd/zsh users.
-end = "endocore.cli.main:main"
+# bare `end dev` is a parser error there; `endo` works in every shell, so it's
+# the only entry point.
 endo = "endocore.cli.main:main"
 
 [project.urls]
@@ -67,5 +66,5 @@ endocore = ["py.typed"]
 
 [tool.pytest.ini_options]
 # The framework's own test suite. The example app's tests are run separately
-# from inside example/ via `end test` (they import the app's Api/ tree).
+# from inside example/ via `endo test` (they import the app's Api/ tree).
 testpaths = ["tests"]

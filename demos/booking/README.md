@@ -5,7 +5,7 @@ with a `UNIQUE(room, day, hour)` backstop, and the test suite races 8 threads
 for the same slot — exactly one gets **201**, the rest get **409**.
 
 ```
-end dev                          # from this directory; DB auto-created on startup
+endo dev                          # from this directory; DB auto-created on startup
 python -m pytest Tests           # flow + race suite
 ```
 

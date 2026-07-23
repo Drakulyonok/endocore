@@ -10,8 +10,8 @@
 | Источник истины | Дерево каталога `Api/` | Python-код + декораторы |
 | Версионирование | Встроено: папки `vN` сосуществуют | Вручную (роутеры/префиксы) |
 | ORM | Встроенная, sync + async | Нет (SQLAlchemy/Tortoise) |
-| Миграции | Встроенные (`end migrate`, rollback) | Alembic (отдельно) |
-| CLI | Встроенный (`end`) | Нет (только uvicorn) |
+| Миграции | Встроенные (`endo migrate`, rollback) | Alembic (отдельно) |
+| CLI | Встроенный (`endo`) | Нет (только uvicorn) |
 | Валидация | pydantic, опционально по параметру | pydantic везде (в ядре) |
 | DI | `Depends` + провайдеры по типу/имени | `Depends` |
 | WebSockets | Файловый `Socket.py` + pub/sub | `@app.websocket` |
@@ -64,7 +64,7 @@ async def handler(request: Request, data: UserIn) -> Response:
 ```
 
 Та же валидация, тот же OpenAPI. Разница в том, где живёт маршрут: в EndoCore
-URL и метод — это расположение и имя файла, `end routes` печатает дерево, а
+URL и метод — это расположение и имя файла, `endo routes` печатает дерево, а
 новая версия API — копия папки.
 
 ## Производительность

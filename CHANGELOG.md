@@ -2,6 +2,55 @@
 
 All notable changes to EndoCore are documented here.
 
+## [0.8.0b1] — 2026-07-23 — data migrations, distributed rate limit, WebSocket fan-out
+
+**1696 tests (plus PostgreSQL pool tests behind ENDOCORE_TEST_POSTGRES_DSN and
+a Redis-backed rate-limit/pub-sub concurrency test behind
+ENDOCORE_TEST_REDIS_URL — both now run for real in CI, against service
+containers).**
+
+### Added
+- **`prefetch_related` on reverse FK relations** — `Author.objects.prefetch_related("books")`
+  now batch-loads the reverse side in one extra query (previously only
+  forward FK and M2M were supported; reverse access fell back to one query
+  per instance). A bare `.all()` or plain iteration on the reverse manager
+  reads the prefetched cache; any further chaining (`.filter()`, `.exclude()`,
+  ...) re-queries, same as the forward/M2M prefetch already worked.
+- **Data migrations** — `endo makemigrations <name> --python` writes a
+  `forward(conn)`/`reverse(conn)` stub numbered into the *same* history as
+  schema (JSON) migrations, so `migrate`/`rollback`/`showmigrations` order and
+  track a data transformation together with the schema change it depends on,
+  instead of a one-off script run by hand. Runs inside its own `atomic()`
+  block; a raised exception rolls back and the migration isn't recorded as
+  applied. Omit `reverse` (the generated stub raises) for a migration that
+  can't be undone — `rollback` then fails loudly instead of doing nothing.
+- **Distributed rate limiting** — `rate_limit_middleware(..., redis_client=...)`
+  shares one counter across every worker process via Redis's atomic `INCR`,
+  instead of each process enforcing its own independent in-memory limit
+  (which under N workers silently turns a "100 req/min" limit into
+  "100·N req/min"). Omit `redis_client` and behavior is unchanged
+  (in-memory, per-process). The Redis client's synchronous calls are
+  offloaded via `asyncio.to_thread`.
+- **Multi-process WebSocket fan-out** — `WebSocketManager(redis_client=...)`
+  publishes broadcasts to Redis (origin-tagged to avoid a worker re-delivering
+  its own message to itself) so every worker's room delivers to its own local
+  sockets. `await manager.start()` / `await manager.stop()` manage the
+  background subscriber; wire them into `on_startup`/`on_shutdown`. Without
+  `redis_client`, both are no-ops and behavior is unchanged (single process).
+- **CI now runs against real PostgreSQL and Redis** — service containers
+  (`postgres:16`, `redis:7`) with health checks, so the pool-concurrency and
+  distributed rate-limit/pub-sub tests exercise real servers on every push
+  instead of only when a contributor happens to run them locally.
+
+### Changed
+- **`end` console script removed — `endo` is the only entry point.** `end` was
+  kept as a bash/cmd/zsh-only alias because it's a reserved word in
+  PowerShell (`begin`/`process`/`end` blocks make a bare `end dev` a parser
+  error there); maintaining two names for one command wasn't earning its
+  keep. Reinstall the package (`pip install -e .` or `pip install
+  endocore==0.8.0b1`) to pick up the change; scripts/CI invoking `end` need
+  to switch to `endo`.
+
 ## [0.7.0b2] — 2026-07-22 — README/metadata refresh
 
 No code changes — PyPI has no way to update a README on an already-published
@@ -101,7 +150,7 @@ carry that README to PyPI. See 0.7.0b1 just below for the actual feature set.
   failure); its JSON schema is included in the OpenAPI `requestBody`.
 - **Migrations: column alter + rename** — a changed column definition triggers a
   portable table **rebuild** (data preserved, reversible); explicit column
-  **rename** via `end makemigrations --rename table.old=new` (`RENAME COLUMN`).
+  **rename** via `endo makemigrations --rename table.old=new` (`RENAME COLUMN`).
 
 ### Notes
 - The async ORM uses a threadpool offload over the existing sync engine — one
@@ -118,7 +167,7 @@ carry that README to PyPI. See 0.7.0b1 just below for the actual feature set.
 - **Cache layer**: `configure_cache` / `get_cache` with in-memory and Redis
   backends, TTL, `incr`, and a `@cached` decorator (sync + async).
 - **OpenAPI 3.0**: `generate_openapi`, served at `/openapi.json` and Swagger UI
-  at `/docs`; `end openapi` writes/prints the schema.
+  at `/docs`; `endo openapi` writes/prints the schema.
 - **Service integrations** (`endocore.extensions`): a pluggable `Extension`
   base + `extensions.py` loader (setup + lifespan), with shipped
   `RedisExtension`, `CeleryExtension`, `EmailExtension` (stdlib SMTP), and
@@ -132,8 +181,8 @@ carry that README to PyPI. See 0.7.0b1 just below for the actual feature set.
 - **`only()` / `defer()`** (partial column fetch), **`bulk_update()`**.
 
 ### Added — migrations
-- **Index diffing** (CREATE/DROP INDEX in migrations), **`end showmigrations`**,
-  **`end sqlmigrate <name>`**, **`end migrate <target>`**.
+- **Index diffing** (CREATE/DROP INDEX in migrations), **`endo showmigrations`**,
+  **`endo sqlmigrate <name>`**, **`endo migrate <target>`**.
 
 ## [0.4.0b1] — 2026-05-30 — fourth Beta: client-usable (DI, batteries, migrations)
 
@@ -162,15 +211,15 @@ Big round toward "client usable": convenience, security, and a lot more surface.
 - **ManyToManyField** (auto through table, `add/remove/set/clear/all/count`),
   **OneToOneField**, **prefetch_related** (batch, no N+1), abstract models with
   field inheritance, `Meta.ordering` / `unique_together` / `indexes`.
-- **Migrations with rollback**: `end makemigrations` / `migrate` / `rollback`
+- **Migrations with rollback**: `endo makemigrations` / `migrate` / `rollback`
   (forward+reverse SQL, applied-state table).
 - `refresh_from_db`, `save(update_fields=...)`, `none()`, `in_bulk()`,
   `__contains__`, richer `__repr__`, `on_delete` (CASCADE/SET NULL/RESTRICT/
   PROTECT), transaction **savepoints** for nested `atomic()`.
 
 ### Added — CLI
-- `end new`, `end routes`, `end check`, `end doctor`,
-  `end makemigrations` / `end migrate` / `end rollback`.
+- `endo new`, `endo routes`, `endo check`, `endo doctor`,
+  `endo makemigrations` / `endo migrate` / `endo rollback`.
 
 ### Fixed
 - `__eq__` for unsaved instances (identity), `bulk_create` now backfills pks on
@@ -202,12 +251,12 @@ Big round toward "client usable": convenience, security, and a lot more surface.
 
 ### Added — framework (first-Beta deferrals)
 - **Default-version alias** (opt-in): `Application(default_version="latest")` /
-  `end dev --default-version latest` resolves a version-less path to the newest
+  `endo dev --default-version latest` resolves a version-less path to the newest
   version and logs which one served it (strict 404 stays the default).
 - **Request streaming** (`Request.stream()`) and `StreamingResponse`.
 - **In-process dev watcher** (`watchfiles`) rebuilds the route tree on change
   without a process restart (`Application.reload()`).
-- **`end test`** now passes pytest flags directly (`end test -q -k name`).
+- **`endo test`** now passes pytest flags directly (`endo test -q -k name`).
 
 ### Changed
 - Optional extras: `endocore[files]` (cryptography), `endocore[watch]`.
@@ -263,14 +312,14 @@ the CLI scaffolds and versions the tree.
   **masked** payload (`password`, `token`, `authorization`, … → `***`).
 - **Boot resilience** — one broken handler file is collected into a boot-error
   summary, not fatal.
-- **CLI `end`** — `create`, `dev` (uvicorn + reload), `version create`/`list`,
+- **CLI `endo`** — `create`, `dev` (uvicorn + reload), `version create`/`list`,
   `test`. `version create` copies endpoints + local services (never global
   `Services/`) and rewrites `Api.vSRC` → `Api.vDEST` imports so a new version
   uses its own local services (real isolation).
 - **Framework test suite** (`tests/`, 29 tests) and a runnable `example/` app.
 
 ### Known limitations
-- `end test` needs `--` before pytest flags: `end test -- -q -k name`.
+- `endo test` needs `--` before pytest flags: `endo test -- -q -k name`.
 - No default-to-latest version alias, no request-body streaming, no
   `pydantic` validation, no custom `watchfiles` watcher (uses uvicorn reload).
   These are intentionally deferred.

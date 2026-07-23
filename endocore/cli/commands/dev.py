@@ -1,4 +1,4 @@
-"""``end dev`` — run the server with in-process auto-reload.
+"""``endo dev`` — run the server with in-process auto-reload.
 
 Serves ``endocore.asgi:create_app`` (dev mode). The framework's own watchfiles
 watcher rebuilds the route tree in-process on change (TZ §4.1) — no process

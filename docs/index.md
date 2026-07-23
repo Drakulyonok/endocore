@@ -42,7 +42,7 @@ async def handler(request: Request) -> Response:
 ```
 
 ```bash
-end dev            # http://127.0.0.1:8000
+endo dev            # http://127.0.0.1:8000
 ```
 
 The folder is the URL, the file name is the HTTP method, `[id]` captures a
@@ -121,7 +121,7 @@ New here? Follow this path:
 
 ## Status
 
-EndoCore is in beta (`0.7.0b2`), stabilising toward `1.0`. It ships with 1600+
+EndoCore is in beta (`0.8.0b1`), stabilising toward `1.0`. It ships with 1600+
 tests covering routing, the ORM (both dialects, injection tests), migrations,
 middleware, DI, cache and WebSockets.
 

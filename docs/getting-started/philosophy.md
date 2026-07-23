@@ -52,7 +52,7 @@ None of this needs to be turned on.
 ## One broken file doesn't kill the app
 
 If an endpoint file fails to import, the error goes into the boot summary and
-the rest of the app starts normally. `end check` shows what's broken.
+the rest of the app starts normally. `endo check` shows what's broken.
 
 ---
 

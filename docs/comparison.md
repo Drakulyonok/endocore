@@ -10,8 +10,8 @@ Both are modern Python ASGI frameworks — they just place different bets.
 | Source of truth | The `Api/` directory tree | Python code + decorators |
 | Versioning | Built in: `vN` folders coexist | Manual (routers/prefixes) |
 | ORM | Built in, sync + async | None (bring SQLAlchemy/Tortoise) |
-| Migrations | Built in (`end migrate`, rollback) | Alembic (separate) |
-| CLI | Built in (`end`) | None (uvicorn only) |
+| Migrations | Built in (`endo migrate`, rollback) | Alembic (separate) |
+| CLI | Built in (`endo`) | None (uvicorn only) |
 | Validation | pydantic, optional per-param | pydantic everywhere (core) |
 | DI | `Depends` + providers by type/name | `Depends` |
 | WebSockets | File-based `Socket.py` + pub/sub | `@app.websocket` |
@@ -65,7 +65,7 @@ async def handler(request: Request, data: UserIn) -> Response:
 ```
 
 Same validation, same OpenAPI. The difference is where the route lives: in
-EndoCore the URL and method are the file's location and name, `end routes`
+EndoCore the URL and method are the file's location and name, `endo routes`
 prints the tree, and a new API version is a folder copy.
 
 ## Performance

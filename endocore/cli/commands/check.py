@@ -1,4 +1,4 @@
-"""``end check`` — validate the project: broken handlers, duplicate routes."""
+"""``endo check`` — validate the project: broken handlers, duplicate routes."""
 
 from __future__ import annotations
 

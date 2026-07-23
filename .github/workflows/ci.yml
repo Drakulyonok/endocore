@@ -12,6 +12,38 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
+    # A real PostgreSQL server for tests/orm/test_postgres_pool.py — the pool
+    # concurrency guarantees (pool_size > 1, aatomic(), UNIQUE races) only
+    # mean something proven against a real server, not SQLite.
+    # A real Redis server for the rate-limit concurrency test: the atomic
+    # INCR guarantee that makes the Redis-backed limiter safe across worker
+    # processes only means something proven against a real server too.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: endocore_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      ENDOCORE_TEST_POSTGRES_DSN: postgresql://postgres:postgres@localhost:5432/endocore_test
+      ENDOCORE_TEST_REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

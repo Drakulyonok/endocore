@@ -104,16 +104,25 @@ for post in Post.objects.prefetch_related("tags"):
   instead of a JOIN — usually you'd reach for `select_related` on a forward
   FK instead, but `prefetch_related` works too if you'd rather avoid the
   JOIN's duplicated base-table columns.
+- **A reverse relation name** (`related_name`, or `<model>_set` if none was
+  set) — **one** extra query (`fk__in=[...]` on the *source* model, grouped
+  by fk id in Python):
 
-**Reverse relations (`related_name`, `<model>_set`) are *not* supported by
-`prefetch_related`** — `Author.objects.prefetch_related("books")` raises
-`FieldError: 'books' is not a relation on Author`, because the resolver
-only recognizes M2M field names and forward FK field names, not reverse
-accessors. There is currently no batched way to avoid N+1 on the reverse
-side of a `ForeignKey` — `author.books.all()` always issues a fresh query
-per author. If that's a real bottleneck, `annotate(n=Count("books"))` at
-least avoids per-row *counting* queries (see [Queries](queries.md)), even
-though it doesn't fetch the related rows themselves.
+```python
+for author in Author.objects.prefetch_related("books"):
+    author.books.all()      # served from cache — no per-author query
+    list(author.books)      # plain iteration is cached too
+    author.books.filter(title__startswith="A")  # chaining still re-queries
+```
+
+  Only a bare `.all()` (or iterating the relation directly, with no other
+  clause) reads from the cache — anything chained afterwards
+  (`.filter()`, `.exclude()`, `.order_by()`, ...) is a genuinely different
+  query and always hits the database, exactly like an ordinary QuerySet.
+  `.count()` on the reverse relation also always queries fresh (it doesn't
+  consult the prefetch cache, the same as any other QuerySet's `.count()`)
+  — if per-row counting is the actual bottleneck, `annotate(n=Count("books"))`
+  avoids that instead (see [Queries](queries.md)).
 
 ## Referencing models by name
 

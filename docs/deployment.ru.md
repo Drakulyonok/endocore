@@ -123,8 +123,8 @@ sudo systemctl enable --now endocore
 Прогоняйте миграции до переключения трафика:
 
 ```bash
-end migrate            # применить ожидающие миграции
-end showmigrations     # проверить
+endo migrate            # применить ожидающие миграции
+endo showmigrations     # проверить
 ```
 
 ## PaaS (Render / Railway / Fly.io / в духе Heroku)
@@ -140,7 +140,7 @@ end showmigrations     # проверить
 - [ ] `ENDOCORE_OPENAPI` оставлен невыставленным, если только сознательно не
   хотите публичную схему — не ставьте "1" по привычке.
 - [ ] Несколько воркеров за прокси.
-- [ ] `end migrate` на каждом релизе.
+- [ ] `endo migrate` на каждом релизе.
 - [ ] Секреты из env (секрет cookie/CSRF, `ENDOCORE_FILE_KEY`, доступы к БД).
 - [ ] Включены security-middleware (см. [Безопасность](guide/security.md)).
 - [ ] TLS терминируется на прокси; настроен `proxy_headers_middleware`.

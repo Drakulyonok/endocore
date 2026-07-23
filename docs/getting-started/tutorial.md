@@ -9,7 +9,7 @@ By the end you'll have `v1` serving posts and comments, auth middleware, and a
 ## 0. Set up
 
 ```bash
-end new blog && cd blog
+endo new blog && cd blog
 pip install "endocore[pydantic]"
 ```
 
@@ -47,7 +47,7 @@ create_all(Author, Post, Comment)
 
 !!! tip "Migrations instead of `create_all`"
     `create_all` is great for prototyping. For a real project use
-    [migrations](../orm/migrations.md): `end makemigrations && end migrate`.
+    [migrations](../orm/migrations.md): `endo makemigrations && endo migrate`.
 
 ## 2. The service layer
 
@@ -175,7 +175,7 @@ You changed the response contract and don't want to break existing clients.
 Copy the whole version:
 
 ```bash
-end version create 2        # Api/v1 -> Api/v2 (endpoints + local services)
+endo version create 2        # Api/v1 -> Api/v2 (endpoints + local services)
 ```
 
 Now edit `Api/v2/Post/Get.py` freely. `v1` keeps behaving **exactly** as before —
@@ -184,13 +184,13 @@ that's the guarantee. See [Versioning](../guide/versioning.md).
 ## 8. Migrations
 
 ```bash
-end makemigrations initial
-end migrate
+endo makemigrations initial
+endo migrate
 # later, after model changes:
-end makemigrations add_views
-end migrate
-end showmigrations          # [x] applied  /  [ ] pending
-end rollback                # undo the last one
+endo makemigrations add_views
+endo migrate
+endo showmigrations          # [x] applied  /  [ ] pending
+endo rollback                # undo the last one
 ```
 
 ## 9. Tests
@@ -215,13 +215,13 @@ def test_create_post():
 Run them:
 
 ```bash
-end test -q
+endo test -q
 ```
 
 ## 10. Serve it
 
 ```bash
-end dev                     # dev, with in-process reload
+endo dev                     # dev, with in-process reload
 # production:
 uvicorn endocore.asgi:create_app --factory --host 0.0.0.0 --port 8000
 ```

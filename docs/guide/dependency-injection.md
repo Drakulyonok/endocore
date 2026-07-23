@@ -71,7 +71,7 @@ more than one rule can technically apply to the same parameter):
    handlers are imported eagerly; a genuinely unresolvable parameter usually
    surfaces the first time the route is *hit*, not at import time (DI runs
    per-request, not at import), so cover new handlers with at least one test
-   request rather than trusting `end check` alone to catch this class of bug.
+   request rather than trusting `endo check` alone to catch this class of bug.
 
 ## App-level providers
 

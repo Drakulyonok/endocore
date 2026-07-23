@@ -5,14 +5,22 @@ models against the last recorded state and writes a JSON file with the SQL to
 apply (``forward``) and to undo (``reverse``) the change, plus the new state.
 ``migrate`` applies pending files; ``rollback`` undoes the most recent ones.
 
-Scope (beta): create/drop tables, add/drop columns, and M2M through tables.
-Column renames and data migrations are out of scope (a rename reads as
-drop+add). Migrations are generated for the project's configured dialect.
+Schema changes (create/drop tables, add/drop columns, M2M through tables,
+column renames) are auto-generated JSON files. Data transformations that
+don't fit "diff the schema" — backfilling a new column, reshaping a JSON blob,
+merging two tables' worth of rows — are Python files (``makedatamigration``):
+a ``forward(conn)``/``reverse(conn)`` pair that runs in the *same* numbered
+history as the JSON ones, so ``migrate``/``rollback``/``showmigrations`` see
+and order them together instead of a one-off script run by hand and hoped to
+land in the right order relative to the schema change it depends on.
+
+Migrations are generated for the project's configured dialect.
 """
 
 from __future__ import annotations
 
 import datetime
+import importlib.util
 import json
 from pathlib import Path
 
@@ -171,14 +179,23 @@ class Migrator:
     def _files(self) -> list[Path]:
         if not self.dir.is_dir():
             return []
-        return sorted(self.dir.glob("[0-9]*.json"))
+        files = list(self.dir.glob("[0-9]*.json")) + list(self.dir.glob("[0-9]*.py"))
+        return sorted(files, key=lambda p: p.stem)
 
     def _last_state(self) -> dict:
         empty = {"tables": {}, "through": {}, "indexes": {}}
-        files = self._files()
-        if not files:
-            return empty
-        return json.loads(files[-1].read_text(encoding="utf-8")).get("state", empty)
+        # Python data migrations carry no schema state; walk back to the last
+        # JSON (schema) migration, which is the one that does.
+        for file in reversed(self._files()):
+            if file.suffix == ".json":
+                return json.loads(file.read_text(encoding="utf-8")).get("state", empty)
+        return empty
+
+    def _load_module(self, file: Path):
+        spec = importlib.util.spec_from_file_location(f"_endocore_migration_{file.stem}", file)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
 
     # -- commands ---------------------------------------------------------
 
@@ -218,6 +235,30 @@ class Migrator:
         (self.dir / filename).write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return filename
 
+    def makedatamigration(self, name: str) -> str:
+        """Write an empty Python data migration: ``forward(conn)``/``reverse(conn)``,
+        numbered into the same history as the schema (JSON) migrations."""
+        self.dir.mkdir(parents=True, exist_ok=True)
+        number = len(self._files()) + 1
+        filename = f"{number:04d}_{name}.py"
+        template = f'''"""Data migration: {name}.
+
+Runs inside its own atomic() block, in the same numbered migration history as
+schema changes (migrate/rollback/showmigrations all see it). Import and use
+your models directly -- the app is already configured by the time this runs.
+"""
+
+
+def forward(conn) -> None:
+    ...
+
+
+def reverse(conn) -> None:
+    raise NotImplementedError("this data migration cannot be reversed")
+'''
+        (self.dir / filename).write_text(template, encoding="utf-8")
+        return filename
+
     def migrate(self, target: str | None = None) -> list[str]:
         """Apply pending migrations (up to and including ``target`` if given)."""
         applied = set(self.applied())
@@ -225,11 +266,17 @@ class Migrator:
         for file in self._files():
             name = file.stem
             if name not in applied:
-                data = json.loads(file.read_text(encoding="utf-8"))
-                with self.conn.atomic():
-                    for statement in data["forward"]:
-                        self.conn.executescript(statement)
-                    self._record(name)
+                if file.suffix == ".py":
+                    module = self._load_module(file)
+                    with self.conn.atomic():
+                        module.forward(self.conn)
+                        self._record(name)
+                else:
+                    data = json.loads(file.read_text(encoding="utf-8"))
+                    with self.conn.atomic():
+                        for statement in data["forward"]:
+                            self.conn.executescript(statement)
+                        self._record(name)
                 done.append(name)
             if target is not None and (name == target or name.startswith(target)):
                 break
@@ -241,9 +288,12 @@ class Migrator:
         return [(f.stem, f.stem in applied) for f in self._files()]
 
     def sqlmigrate(self, name: str) -> str:
-        """The forward SQL of a migration (matched by name/prefix)."""
+        """The forward SQL of a migration (matched by name/prefix); for a
+        Python data migration, its source instead (there's no SQL to show)."""
         for file in self._files():
             if file.stem == name or file.stem.startswith(name):
+                if file.suffix == ".py":
+                    return f"-- data migration (Python), not SQL: {file}\n\n" + file.read_text(encoding="utf-8")
                 data = json.loads(file.read_text(encoding="utf-8"))
                 return ";\n".join(data["forward"]) + ";"
         raise FileNotFoundError(f"no migration matching {name!r}")
@@ -253,13 +303,22 @@ class Migrator:
         targets = list(reversed(applied[-steps:])) if steps > 0 else []
         reverted: list[str] = []
         for name in targets:
-            file = self.dir / f"{name}.json"
-            if not file.is_file():
+            json_file = self.dir / f"{name}.json"
+            py_file = self.dir / f"{name}.py"
+            if py_file.is_file():
+                module = self._load_module(py_file)
+                if not hasattr(module, "reverse"):
+                    raise RuntimeError(f"data migration {name!r} has no reverse(); cannot roll back")
+                with self.conn.atomic():
+                    module.reverse(self.conn)
+                    self._unrecord(name)
+            elif json_file.is_file():
+                data = json.loads(json_file.read_text(encoding="utf-8"))
+                with self.conn.atomic():
+                    for statement in data["reverse"]:
+                        self.conn.executescript(statement)
+                    self._unrecord(name)
+            else:
                 raise FileNotFoundError(f"migration file for {name!r} is missing; cannot roll back")
-            data = json.loads(file.read_text(encoding="utf-8"))
-            with self.conn.atomic():
-                for statement in data["reverse"]:
-                    self.conn.executescript(statement)
-                self._unrecord(name)
             reverted.append(name)
         return reverted

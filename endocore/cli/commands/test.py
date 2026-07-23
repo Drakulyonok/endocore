@@ -1,4 +1,4 @@
-"""``end test`` — run the user's tests (optional convenience).
+"""``endo test`` — run the user's tests (optional convenience).
 
 The framework never generates tests; the user writes them under ``Tests/``. This
 just shells out to pytest if it is installed, with the application directory on

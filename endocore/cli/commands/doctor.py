@@ -1,4 +1,4 @@
-"""``end doctor`` — environment/dependency/config sanity check."""
+"""``endo doctor`` — environment/dependency/config sanity check."""
 
 from __future__ import annotations
 

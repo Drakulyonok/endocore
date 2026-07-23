@@ -61,7 +61,7 @@ env("DEBUG", cast=lambda v: v.lower() in {"1", "true", "yes"})
 
 ## Опции приложения
 
-`Application` (создаётся `end dev` / ASGI-фабрикой) принимает:
+`Application` (создаётся `endo dev` / ASGI-фабрикой) принимает:
 
 | Опция | По умолчанию | Значение |
 |--------|---------|---------|
@@ -71,4 +71,4 @@ env("DEBUG", cast=lambda v: v.lower() in {"1", "true", "yes"})
 | `openapi` | `None` | отдавать `/openapi.json` и `/docs`; `None` = только при `dev=True` (в проде включайте явно: `openapi=True` / `ENDOCORE_OPENAPI=1`) |
 | `openapi_title` | `"EndoCore API"` | заголовок в схеме |
 
-`end dev` выносит основные из них во флаги (`--default-version`, `--no-reload`).
+`endo dev` выносит основные из них во флаги (`--default-version`, `--no-reload`).

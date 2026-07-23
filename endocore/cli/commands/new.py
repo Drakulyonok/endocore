@@ -1,4 +1,4 @@
-"""``end new <Name>`` — scaffold a fresh EndoCore project."""
+"""``endo new <Name>`` — scaffold a fresh EndoCore project."""
 
 from __future__ import annotations
 
@@ -43,9 +43,9 @@ _README = """# {name}
 
 An EndoCore project. Run the dev server:
 
-    end dev
+    endo dev
 
-Useful commands: `end routes`, `end check`, `end doctor`, `end create user/profile get`.
+Useful commands: `endo routes`, `endo check`, `endo doctor`, `endo create user/profile get`.
 """
 
 
@@ -77,5 +77,5 @@ def run(args: argparse.Namespace) -> int:
     print(f"created project {args.name}/")
     print("next:")
     print(f"  cd {args.name}")
-    print("  end dev        # http://127.0.0.1:8000/v1/health")
+    print("  endo dev        # http://127.0.0.1:8000/v1/health")
     return 0

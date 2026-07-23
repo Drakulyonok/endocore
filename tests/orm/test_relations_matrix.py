@@ -6,6 +6,7 @@ import pytest
 
 from endocore.orm import Model, fields, configure, create_all
 from endocore.orm.connection import get_connection
+from endocore.orm.exceptions import FieldError
 
 
 class Author(Model):
@@ -157,3 +158,77 @@ def test_prefetch_fk(db):
         Book.objects.create(title=f"t{i}", author=a)
     books = list(Book.objects.prefetch_related("author").filter(author=a))
     assert all(bk.author.name == "Ann" for bk in books)
+
+
+def _count_queries(fn):
+    """Run ``fn`` and return (result, number of statements sent to the DB)."""
+    conn = get_connection()
+    original = conn.execute
+    calls = []
+
+    def counting(sql, params=(), **kwargs):
+        calls.append(sql)
+        return original(sql, params, **kwargs)
+
+    conn.execute = counting
+    try:
+        result = fn()
+    finally:
+        conn.execute = original
+    return result, len(calls)
+
+
+def test_prefetch_reverse_fk_all_and_iteration_hit_no_query(db):
+    """``author.book_set`` is the reverse accessor here (no related_name set
+    on Book.author) — prefetch_related must batch it in one extra query, and
+    both ``.all()`` and plain iteration must then read from that cache."""
+    a1 = Author.objects.create(name="Ada")
+    a2 = Author.objects.create(name="Bo")
+    Author.objects.create(name="Cy")  # no books at all
+    Book.objects.create(title="X1", author=a1)
+    Book.objects.create(title="X2", author=a1)
+    Book.objects.create(title="Y1", author=a2)
+
+    authors, n_prefetch = _count_queries(
+        lambda: list(Author.objects.order_by("name").prefetch_related("book_set"))
+    )
+    assert n_prefetch == 2  # authors + the one batched books query
+
+    by_name = {a.name: a for a in authors}
+
+    (titles_a1, titles_a2, titles_c), n_reads = _count_queries(lambda: (
+        sorted(b.title for b in by_name["Ada"].book_set.all()),
+        sorted(b.title for b in by_name["Bo"].book_set.all()),
+        list(by_name["Cy"].book_set.all()),
+    ))
+    assert n_reads == 0, "prefetched .all() must not touch the database"
+    assert titles_a1 == ["X1", "X2"]
+    assert titles_a2 == ["Y1"]
+    assert titles_c == []
+
+    # plain iteration (no explicit .all()) must also use the cache
+    _, n_iter = _count_queries(lambda: list(by_name["Ada"].book_set))
+    assert n_iter == 0
+
+
+def test_prefetch_reverse_fk_filter_still_queries_fresh(db):
+    """Chaining beyond the bare relation (.filter/.exclude/...) must not
+    silently serve stale cached rows — it's a different query, so it has to
+    actually run."""
+    a = Author.objects.create(name="Ada")
+    Book.objects.create(title="Xylophone", author=a)
+    Book.objects.create(title="Yo-yo", author=a)
+
+    authors, _ = _count_queries(
+        lambda: list(Author.objects.filter(name="Ada").prefetch_related("book_set"))
+    )
+    filtered, n = _count_queries(
+        lambda: list(authors[0].book_set.filter(title__startswith="X"))
+    )
+    assert n == 1
+    assert [b.title for b in filtered] == ["Xylophone"]
+
+
+def test_prefetch_reverse_fk_unknown_name_still_raises(db):
+    with pytest.raises(FieldError):
+        list(Author.objects.prefetch_related("no_such_relation"))

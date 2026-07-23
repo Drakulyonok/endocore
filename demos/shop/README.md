@@ -5,7 +5,7 @@ idempotent, and the whole test suite runs against **real PostgreSQL with
 `pool_size=5`** when a DSN is provided.
 
 ```
-end dev                          # from this directory; DB auto-created on startup
+endo dev                          # from this directory; DB auto-created on startup
 python -m pytest Tests           # SQLite (default)
 
 # the same suite — races included — against a real Postgres pool:

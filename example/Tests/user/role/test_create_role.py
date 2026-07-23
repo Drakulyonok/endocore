@@ -1,6 +1,6 @@
 """User-written test (the framework never generates these).
 
-Run with `end test` or `pytest` from the example/ directory.
+Run with `endo test` or `pytest` from the example/ directory.
 """
 
 import pytest

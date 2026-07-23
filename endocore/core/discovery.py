@@ -129,7 +129,7 @@ def scan_routes(api_dir: Path) -> tuple[list[RouteSpec], list[SkippedFile]]:
 def list_versions(api_dir: Path) -> list[str]:
     """Return version folder names under ``api_dir`` sorted ascending by number.
 
-    Used by both the resolver and the ``end version`` CLI commands.
+    Used by both the resolver and the ``endo version`` CLI commands.
     """
     if not api_dir.is_dir():
         return []

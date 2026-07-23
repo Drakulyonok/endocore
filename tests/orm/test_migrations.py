@@ -99,3 +99,142 @@ def test_rollback_steps(db, steps):
     m2.migrate()
     reverted = m2.rollback(steps)
     assert len(reverted) == min(steps, 2)
+
+
+# -- data migrations -----------------------------------------------------------
+
+
+def test_makedatamigration_writes_a_python_stub(db):
+    m = _migrator(db, [Alpha])
+    filename = m.makedatamigration("backfill_names")
+    assert filename == "0001_backfill_names.py"
+    path = m.dir / filename
+    assert path.is_file()
+    source = path.read_text(encoding="utf-8")
+    assert "def forward(conn)" in source
+    assert "def reverse(conn)" in source
+
+
+def test_data_migration_numbered_after_schema_migrations(db):
+    m = _migrator(db, [Alpha])
+    m.makemigrations("initial")
+    filename = m.makedatamigration("backfill")
+    assert filename == "0002_backfill.py"
+
+
+def test_data_migration_applies_and_is_recorded(db):
+    m = _migrator(db, [Alpha])
+    m.makemigrations("initial")
+    m.migrate()
+
+    filename = m.makedatamigration("seed_alpha")
+    (m.dir / filename).write_text(
+        '''
+def forward(conn) -> None:
+    from tests.orm.test_migrations import Alpha
+    Alpha.objects.create(name="seeded")
+
+
+def reverse(conn) -> None:
+    from tests.orm.test_migrations import Alpha
+    Alpha.objects.filter(name="seeded").delete()
+''',
+        encoding="utf-8",
+    )
+
+    applied = m.migrate()
+    assert applied == ["0002_seed_alpha"]
+    assert m.applied() == ["0001_initial", "0002_seed_alpha"]
+    assert Alpha.objects.filter(name="seeded").count() == 1
+
+    # idempotent: already applied, migrate() is a no-op
+    assert m.migrate() == []
+
+
+def test_data_migration_rollback_runs_reverse(db):
+    m = _migrator(db, [Alpha])
+    m.makemigrations("initial")
+    m.migrate()
+
+    filename = m.makedatamigration("seed_alpha")
+    (m.dir / filename).write_text(
+        '''
+def forward(conn) -> None:
+    from tests.orm.test_migrations import Alpha
+    Alpha.objects.create(name="seeded")
+
+
+def reverse(conn) -> None:
+    from tests.orm.test_migrations import Alpha
+    Alpha.objects.filter(name="seeded").delete()
+''',
+        encoding="utf-8",
+    )
+    m.migrate()
+    assert Alpha.objects.filter(name="seeded").count() == 1
+
+    reverted = m.rollback(1)
+    assert reverted == ["0002_seed_alpha"]
+    assert Alpha.objects.filter(name="seeded").count() == 0
+    assert m.applied() == ["0001_initial"]
+
+
+def test_data_migration_without_reverse_cannot_roll_back(db):
+    m = _migrator(db, [Alpha])
+    m.makemigrations("initial")
+    m.migrate()
+
+    filename = m.makedatamigration("irreversible")
+    m.migrate()  # applies the default stub, whose reverse() raises NotImplementedError
+
+    with pytest.raises(NotImplementedError):
+        m.rollback(1)
+    # the failed rollback's atomic() block rolled back; still recorded as applied
+    assert m.applied() == ["0001_initial", "0002_irreversible"]
+
+
+def test_data_migration_forward_failure_is_not_recorded(db):
+    m = _migrator(db, [Alpha])
+    m.makemigrations("initial")
+    m.migrate()
+
+    filename = m.makedatamigration("boom")
+    (m.dir / filename).write_text(
+        '''
+def forward(conn) -> None:
+    raise RuntimeError("boom")
+
+
+def reverse(conn) -> None:
+    pass
+''',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError):
+        m.migrate()
+    assert m.applied() == ["0001_initial"]  # the failed migration was not recorded
+
+
+def test_sqlmigrate_on_data_migration_prints_source_not_sql(db):
+    m = _migrator(db, [Alpha])
+    m.makemigrations("initial")
+    filename = m.makedatamigration("backfill")
+    out = m.sqlmigrate("0002")
+    assert "data migration" in out
+    assert "def forward(conn)" in out
+
+
+def test_makemigrations_after_data_migration_diffs_against_last_schema(db):
+    """A Python data migration carries no schema state; the next
+    makemigrations() must still diff against the last JSON migration's state,
+    not silently think there's nothing to compare against."""
+    m = _migrator(db, [Alpha])
+    m.makemigrations("initial")
+    m.migrate()
+    m.makedatamigration("noop")
+
+    m2 = _migrator(db, [Alpha, Beta])
+    filename = m2.makemigrations("add_beta")
+    assert filename == "0003_add_beta.json"
+    assert m2.applied() == ["0001_initial"]

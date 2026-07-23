@@ -62,7 +62,7 @@ env("DEBUG", cast=lambda v: v.lower() in {"1", "true", "yes"})
 
 ## Application options
 
-`Application` (built by `end dev` / the ASGI factory) accepts:
+`Application` (built by `endo dev` / the ASGI factory) accepts:
 
 | Option | Default | Meaning |
 |--------|---------|---------|
@@ -72,4 +72,4 @@ env("DEBUG", cast=lambda v: v.lower() in {"1", "true", "yes"})
 | `openapi` | `None` | serve `/openapi.json` and `/docs`; `None` = only when `dev=True` (opt in for production with `openapi=True` / `ENDOCORE_OPENAPI=1`) |
 | `openapi_title` | `"EndoCore API"` | title in the schema |
 
-`end dev` exposes the common ones as flags (`--default-version`, `--no-reload`).
+`endo dev` exposes the common ones as flags (`--default-version`, `--no-reload`).

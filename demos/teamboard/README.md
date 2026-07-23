@@ -5,7 +5,7 @@ with access control, async ORM + `aatomic()`, and **live board updates over
 WebSocket** (REST mutations broadcast to every subscribed member).
 
 ```
-end dev                          # from this directory; DB auto-created on startup
+endo dev                          # from this directory; DB auto-created on startup
 python -m pytest Tests           # e2e suite (REST + live WebSocket)
 ```
 

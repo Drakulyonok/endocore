@@ -6,7 +6,7 @@ always know where a request is and which module owns it.
 ## The two halves
 
 ```text
-endocore/            ← the framework (installed package, the `end` CLI)
+endocore/            ← the framework (installed package, the `endo` CLI)
 your_app/            ← your application (Api/, Services/, Models/, ...)
 ```
 
@@ -31,7 +31,7 @@ endocore/
     cache.py  config.py  signing.py  pubsub.py  openapi.py  exceptions.py
   middleware/        # shipped middleware: logging, cors, csrf, gzip, ...
   orm/               # the ORM (models, fields, query, compiler, backends, ...)
-  cli/               # the `end` CLI (create, dev, routes, migrate, ...)
+  cli/               # the `endo` CLI (create, dev, routes, migrate, ...)
   extensions/        # Redis, Celery, Email, Cache integrations
 ```
 

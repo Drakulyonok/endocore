@@ -75,8 +75,8 @@
 **Миграции**
 
 - `Migrator(models=None, using="default", directory="migrations")` —
-  `makemigrations(name, renames=None) migrate(target=None) rollback(steps=1)
-  showmigrations() sqlmigrate(name)`
+  `makemigrations(name, renames=None) makedatamigration(name) migrate(target=None)
+  rollback(steps=1) showmigrations() sqlmigrate(name)`
 
 **Файлы и хранилище**
 

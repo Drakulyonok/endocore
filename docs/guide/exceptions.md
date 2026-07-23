@@ -57,5 +57,5 @@ validation failure (422) `detail` is a list of `{"field", "message"}` entries.
 ## Boot-time errors
 
 An endpoint file that fails to **import** doesn't crash the app — it's collected
-and reported in the boot summary and by `end check`. The rest of the app keeps
+and reported in the boot summary and by `endo check`. The rest of the app keeps
 serving.

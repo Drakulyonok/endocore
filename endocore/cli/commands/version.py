@@ -1,7 +1,7 @@
-"""``end version ...`` — versioning as a tree operation.
+"""``endo version ...`` — versioning as a tree operation.
 
-    end version create N        copy the latest version -> vN
-    end version list            list existing versions
+    endo version create N        copy the latest version -> vN
+    endo version list            list existing versions
 
 ``create`` is ``shutil.copytree`` with a filter: endpoint files and **local**
 services (``Api/vX/.../Services/``) are copied; global ``/Services/`` live

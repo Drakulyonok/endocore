@@ -123,8 +123,8 @@ sudo systemctl enable --now endocore
 Run migrations before switching traffic:
 
 ```bash
-end migrate            # apply pending migrations
-end showmigrations     # verify
+endo migrate            # apply pending migrations
+endo showmigrations     # verify
 ```
 
 ## PaaS (Render / Railway / Fly.io / Heroku-style)
@@ -140,7 +140,7 @@ end showmigrations     # verify
 - [ ] Leave `ENDOCORE_OPENAPI` unset unless you deliberately want the schema
   public — don't set it to "1" out of habit.
 - [ ] Multiple workers behind a proxy.
-- [ ] `end migrate` on each release.
+- [ ] `endo migrate` on each release.
 - [ ] Secrets from env (cookie/CSRF secret, `ENDOCORE_FILE_KEY`, DB creds).
 - [ ] Security middleware enabled (see [Security](guide/security.md)).
 - [ ] TLS terminated at the proxy; `proxy_headers_middleware` configured.

@@ -10,16 +10,16 @@ below, not left for you to discover).
 
 ```bash
 pip install "endocore[watch]"    # [watch] enables the dev-server auto-reload — see step 2
-end new blog
+endo new blog
 cd blog
 ```
 
 !!! note "PowerShell"
-    In PowerShell type `endo` instead of `end` (`endo new blog`) — `end` is a
+    In PowerShell type `endo` instead of `endo` (`endo new blog`) — `endo` is a
     reserved word there (it's a PowerShell block keyword). Same CLI, different
     name; every other command below works identically with either.
 
-`end new blog` writes exactly this, nothing more (this is `endocore/cli/commands/new.py`,
+`endo new blog` writes exactly this, nothing more (this is `endocore/cli/commands/new.py`,
 not a guess):
 
 ```text
@@ -27,7 +27,7 @@ blog/
   Api/
     v1/
       Health/
-        Get.py          # GET /v1/health — a liveness probe, so `end dev` has
+        Get.py          # GET /v1/health — a liveness probe, so `endo dev` has
                          # something to serve immediately
   Middleware/
     __init__.py         # an empty `middlewares = [...]` list, commented examples
@@ -43,7 +43,7 @@ once you actually wire up a service integration (Redis, Celery, email); see
 ## 2. Run the dev server
 
 ```bash
-end dev
+endo dev
 ```
 
 You should see something like:
@@ -57,15 +57,15 @@ You should see something like:
 Visit `http://127.0.0.1:8000/v1/health` — you'll get `{"status": "ok"}`.
 Open `http://127.0.0.1:8000/docs` for the interactive **Swagger UI**, where you
 can try every endpoint from the browser. (`/docs` is on automatically here
-because `end dev` runs with `dev=True` — in a production deployment it's off
+because `endo dev` runs with `dev=True` — in a production deployment it's off
 by default; see [Configuration](../guide/configuration.md).)
 
 !!! warning "No `dev watcher on: ...` line? Reload won't happen"
     The in-process file watcher needs the optional `watchfiles` package —
     that's what `pip install "endocore[watch]"` in step 1 was for. Without it,
-    `end dev` still runs the app perfectly normally, it just logs `dev watcher
+    `endo dev` still runs the app perfectly normally, it just logs `dev watcher
     disabled (install 'watchfiles' for auto-reload)` instead, and every save
-    in steps 3–6 below will need a manual restart (`Ctrl+C`, `end dev` again)
+    in steps 3–6 below will need a manual restart (`Ctrl+C`, `endo dev` again)
     to take effect. If you skipped the `[watch]` extra, install it now:
     `pip install watchfiles`.
 
@@ -74,17 +74,17 @@ by default; see [Configuration](../guide/configuration.md).)
 Either scaffold it:
 
 ```bash
-end create user/profile get
+endo create user/profile get
 # -> Api/v1/User/Profile/Get.py   (GET /v1/user/profile)
 ```
 
-`end create` PascalCases each path segment for you (`user` → `User`) and
+`endo create` PascalCases each path segment for you (`user` → `User`) and
 writes a minimal handler body; it targets the **latest existing version**
 when you don't specify one (here, `v1`, since it's the only one). Run it
 again with the same arguments and it won't clobber your edits — it prints
 `exists: ...` and leaves the file alone.
 
-…or just create the file yourself — `end create` is a convenience, not a
+…or just create the file yourself — `endo create` is a convenience, not a
 requirement. **The folder is the path, the file name is the method**, full
 stop:
 
@@ -192,7 +192,7 @@ Two things worth understanding here, not just copying:
   run.
 
 `blog.db` is created **relative to the process's current working
-directory** (wherever you ran `end dev` from), not relative to the model
+directory** (wherever you ran `endo dev` from), not relative to the model
 file — worth knowing before you wonder why the file shows up somewhere
 unexpected. See the full [ORM guide](../orm/index.md) for fields, lookups,
 relations, and the async API.
@@ -200,12 +200,12 @@ relations, and the async API.
 ## 7. Inspect your app
 
 ```bash
-end routes         # list every route + the file it maps to
-end check          # find broken handlers, duplicate routes, skipped files (with reasons)
-end openapi        # print the OpenAPI schema
+endo routes         # list every route + the file it maps to
+endo check          # find broken handlers, duplicate routes, skipped files (with reasons)
+endo openapi        # print the OpenAPI schema
 ```
 
-`end check` is worth running any time something *should* be routed but
+`endo check` is worth running any time something *should* be routed but
 isn't showing up — it prints exactly why the scanner skipped each such file
 (wrong version folder, wrong location), rather than leaving you to guess.
 

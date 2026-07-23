@@ -19,7 +19,7 @@ at the file's **name** and its **path** and decides one of three things:
 2. It's **skipped with a reason** — it *looks* like it was meant to be a
    route (the name matches a method) but something about its placement is
    wrong (missing version folder, inside `Services/`). This shows up in
-   `end check` and in the boot log.
+   `endo check` and in the boot log.
 3. It's **ordinary code** — its file name isn't an HTTP method at all
    (`validator.py`, `create_role.py`, `__init__.py`, ...). EndoCore doesn't
    look at it during routing at all; it's just a Python module you can
@@ -48,7 +48,7 @@ The **first folder** directly under `Api/` must match the regex `^v\d+$`
 nothing else. This is checked with Python's `re.match`, which is
 **case-sensitive**: a folder named `V1` does **not** match, and every file
 under it is skipped with the reason *"not under a version folder (vN)"*
-(you'll see this in `end check`'s output — it's a common first-time typo).
+(you'll see this in `endo check`'s output — it's a common first-time typo).
 
 There's no allowance for `v1.2` or `v1-beta` either — the version segment is
 strictly "v" + digits. See [Versioning](versioning.md) for what a version
@@ -74,7 +74,7 @@ two folders that differ only by case (`Api/v1/User/Get.py` and
 overwrites the first one's handler for that method (insertion order is
 deterministic — files are visited in sorted path order — but which one
 that is isn't obvious at a glance). The good news: this exact class of
-mistake **is** caught by `end check`, which reports
+mistake **is** caught by `endo check`, which reports
 `[dup] GET /v1/user defined more than once` — always run it after a rename.
 
 ### 3. The file's name (its **stem**, not its extension) is the HTTP method
@@ -139,7 +139,7 @@ configuration — just add both folders. There's no ambiguity to resolve at
 request time, because static lookup always wins, unconditionally.
 
 **Only one dynamic child is allowed per node — and unlike the static case
-above, a name clash here is *not* caught by `end check`.** If both
+above, a name clash here is *not* caught by `endo check`.** If both
 `Api/v1/User/[id]/Get.py` and `Api/v1/User/[slug]/Post.py` exist, the trie
 node for "User's dynamic child" is created once, by whichever file the
 scanner visits **first** (sorted path order), and its `param_name` is set
@@ -147,10 +147,10 @@ from *that* file's bracket name and never changed again — the second
 file's own bracket name is silently ignored for routing purposes. Concretely:
 if `Get.py` under `[id]` is registered first, then the `Post.py` handler
 living in the `[slug]` folder still receives `request.path_params["id"]`,
-**not** `"slug"`, even though its own folder is named `[slug]`. `end check`'s
+**not** `"slug"`, even though its own folder is named `[slug]`. `endo check`'s
 duplicate detector doesn't catch this because it compares full URL
 *templates* (`/v1/user/{id}` vs `/v1/user/{slug}`), which are different
-strings — from `end check`'s point of view nothing is duplicated. Avoid this
+strings — from `endo check`'s point of view nothing is duplicated. Avoid this
 entirely by using the **same bracket name at every method file sharing a
 tree position** (`[id]` for `Get.py`, `Patch.py`, and `Delete.py` alike).
 
@@ -207,7 +207,7 @@ whole file (with the reason *"inside non-route folder 'Services'"*) if any
 of them match. This is also how **local, per-version services** work: a
 `Services/` folder inside `Api/v1/User/` holds code that's global-import-able
 but never treated as a route and gets copied along with the version when you
-run `end version create`.
+run `endo version create`.
 
 ## Resolution outcomes
 
@@ -234,12 +234,12 @@ slashes are harmless.
 ## Inspecting and debugging routes
 
 ```bash
-end routes      # every method + URL + the file it maps to, straight from the trie
-end check       # duplicate routes, broken handlers, and every skipped file with its reason
-end doctor      # broader project sanity check (Python version, optional deps, layout)
+endo routes      # every method + URL + the file it maps to, straight from the trie
+endo check       # duplicate routes, broken handlers, and every skipped file with its reason
+endo doctor      # broader project sanity check (Python version, optional deps, layout)
 ```
 
-`end check` is the fastest way to find a typo'd version folder or a
+`endo check` is the fastest way to find a typo'd version folder or a
 misplaced file: anything discovery.py skipped with a reason shows up there,
 even though it never affects the running app (a skipped file just means
 "not a route" — it isn't an error by itself).
@@ -252,7 +252,7 @@ client that forgot to specify one is exactly the kind of implicit behavior
 that causes production incidents down the line. You can opt in anyway:
 
 ```bash
-end dev --default-version latest
+endo dev --default-version latest
 ```
 
 or in code: `Application(app_dir=..., default_version="latest")`. With this

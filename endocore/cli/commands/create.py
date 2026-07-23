@@ -1,4 +1,4 @@
-"""``end create <path> [method]`` — scaffold an endpoint.
+"""``endo create <path> [method]`` — scaffold an endpoint.
 
 ``path`` is ``user/role`` or an explicit ``v2/user/role``. Without a version
 prefix the target is the latest existing version (or ``v1`` if none exists).

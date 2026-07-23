@@ -142,7 +142,7 @@ class Registry:
         return collected
 
     def routes(self) -> list:
-        """All registered route specs (for ``end routes`` / introspection)."""
+        """All registered route specs (for ``endo routes`` / introspection)."""
         return [entry.spec for entry in self.entries()]
 
     def __len__(self) -> int:

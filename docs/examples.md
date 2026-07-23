@@ -8,7 +8,7 @@ to lay out larger projects. Each is just a folder tree — that's the point.
 ```bash
 git clone https://github.com/Drakulyonok/endocore
 cd endocore/example
-end dev            # http://127.0.0.1:8000
+endo dev            # http://127.0.0.1:8000
 ```
 
 It demonstrates: versioned routes, dynamic segments, local vs global services,
@@ -38,7 +38,7 @@ blog/
     posts.py               # business logic
   hooks.py                 # open/close resources
   providers.py             # DI providers (settings, db)
-  migrations/              # end makemigrations / migrate
+  migrations/              # endo makemigrations / migrate
   Tests/
     test_posts.py
 ```

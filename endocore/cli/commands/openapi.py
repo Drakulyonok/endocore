@@ -1,4 +1,4 @@
-"""``end openapi`` — dump the OpenAPI 3.0 schema for the project."""
+"""``endo openapi`` — dump the OpenAPI 3.0 schema for the project."""
 
 from __future__ import annotations
 

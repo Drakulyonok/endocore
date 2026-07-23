@@ -22,13 +22,13 @@ Api/
 ## Creating a version
 
 ```bash
-end version create 2          # copy the latest version -> v2
-end version create 2 --from 1 # branch from a specific version
-end version create 2 --empty  # scaffolds without bodies
-end version list              # v1, v2
+endo version create 2          # copy the latest version -> v2
+endo version create 2 --from 1 # branch from a specific version
+endo version create 2 --empty  # scaffolds without bodies
+endo version list              # v1, v2
 ```
 
-`end version create` is `shutil.copytree` with a filter: it copies **endpoints**
+`endo version create` is `shutil.copytree` with a filter: it copies **endpoints**
 and **local services**, and repoints version-qualified imports so `v2` uses its
 own services — never `v1`'s.
 
@@ -50,9 +50,9 @@ local code and endpoints.
 ## Creating endpoints in a version
 
 ```bash
-end create user/role post          # into the latest version
-end create v2/user/role post       # into an explicit version
+endo create user/role post          # into the latest version
+endo create v2/user/role post       # into an explicit version
 ```
 
-Without a `vN` prefix, `end create` targets the latest existing version (or `v1`
+Without a `vN` prefix, `endo create` targets the latest existing version (or `v1`
 if none exist).

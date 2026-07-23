@@ -75,8 +75,8 @@ and the ORM from `endocore.orm`.
 **Migrations**
 
 - `Migrator(models=None, using="default", directory="migrations")` —
-  `makemigrations(name, renames=None) migrate(target=None) rollback(steps=1)
-  showmigrations() sqlmigrate(name)`
+  `makemigrations(name, renames=None) makedatamigration(name) migrate(target=None)
+  rollback(steps=1) showmigrations() sqlmigrate(name)`
 
 **Files & storage**
 

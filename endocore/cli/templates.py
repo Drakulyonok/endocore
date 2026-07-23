@@ -1,4 +1,4 @@
-"""File bodies emitted by ``end create`` — thin endpoints, real (not empty).
+"""File bodies emitted by ``endo create`` — thin endpoints, real (not empty).
 
 Endpoints stay thin by construction: parse input -> call a service -> respond.
 That is a hard requirement of versioning (fat endpoints copy-paste logic across

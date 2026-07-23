@@ -1,4 +1,4 @@
-"""``end makemigrations`` / ``end migrate`` / ``end rollback``.
+"""``endo makemigrations`` / ``endo migrate`` / ``endo rollback``.
 
 These import the project (so models register and the DB connection is
 configured), then drive :class:`endocore.orm.Migrator`.
@@ -27,8 +27,8 @@ def _load_project(cwd: Path) -> None:
                 module = importlib.util.module_from_spec(spec)
                 try:
                     spec.loader.exec_module(module)
-                except Exception:  # noqa: BLE001 - a bad model file shouldn't kill the CLI
-                    pass
+                except Exception as exc:  # noqa: BLE001 - a bad model file shouldn't kill the CLI
+                    print(f"warning: failed to import Models/{file.name}: {exc}")
 
 
 def _migrator():
@@ -48,6 +48,10 @@ def register(subparsers) -> None:
     make.add_argument(
         "--rename", action="append", default=[], metavar="TABLE.OLD=NEW",
         help="rename a column (repeatable), e.g. --rename user.fullname=name",
+    )
+    make.add_argument(
+        "--python", action="store_true",
+        help="write an empty Python data migration (forward/reverse) instead of diffing models; requires a name",
     )
     make.set_defaults(func=run_make)
 
@@ -72,6 +76,13 @@ def run_make(args: argparse.Namespace) -> int:
     migrator = _migrator()
     if migrator is None:
         return 2
+    if getattr(args, "python", False):
+        if not args.name:
+            print("error: --python requires a migration name")
+            return 2
+        created = migrator.makedatamigration(args.name)
+        print(f"created migrations/{created}")
+        return 0
     renames = {}
     for spec in getattr(args, "rename", []) or []:
         target, _, new_col = spec.partition("=")
